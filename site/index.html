@@ -1,2 +1,68 @@
 <!doctype html>
-<html lang="fr"><meta charset="utf-8"><title>Coup de Patte</title><link rel="stylesheet" href="css/style.css"><p>Le jeu arrive.</p><script type="module" src="js/app.js"></script></html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Coup de Patte : qui a dessiné cette case ?</title>
+  <meta name="description" content="Une case de BD Disney, neuf dessinateurs, quinze secondes. Reconnais le coup de patte de Barks, Rosa, Scarpa, Cavazzano et des autres.">
+  <meta name="theme-color" content="#ffd400">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta property="og:title" content="Coup de Patte">
+  <meta property="og:description" content="Une case de BD Disney, neuf dessinateurs, quinze secondes. Qui l'a dessinée ?">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://jonathan8520.github.io/coup-de-patte/icons/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://inducks.org">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght,BNCE,INFM@300..800,-100..100,0..100&display=swap">
+  <link rel="stylesheet" href="css/style.css?v=__VERSION__">
+  <script type="module" src="js/app.js?v=__VERSION__"></script>
+</head>
+<body>
+  <a class="skip" href="#app">Aller au contenu</a>
+
+  <header class="bar" id="bar">
+    <a class="brand" href="#/" aria-label="Coup de Patte, accueil">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#patte"/></svg>
+      <span class="brand-name">Coup de Patte</span>
+    </a>
+    <nav class="bar-actions" aria-label="Menu">
+      <button class="icon-btn" type="button" data-open="stats" aria-label="Mes statistiques">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-stats"/></svg>
+      </button>
+      <button class="icon-btn" type="button" data-open="about" aria-label="Comment jouer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <main id="app" tabindex="-1"></main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p class="noscript">Coup de Patte a besoin de JavaScript pour fonctionner.</p></noscript>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="patte" viewBox="0 0 64 64">
+        <path fill="currentColor" d="M32 59C27.5 59 24.5 56 22.5 51.5L7.2 20.6C6 17.5 7.6 15 10.5 15.8Q21 19 30 7.2C31 5.6 33 5.6 34 7.2Q43 19 53.5 15.8C56.4 15 58 17.5 56.8 20.6L41.5 51.5C39.5 56 36.5 59 32 59Z"/>
+        <path fill="none" stroke="var(--mark-cut, #ffd400)" stroke-width="2.4" stroke-linecap="round" d="M27.5 41.5L14.5 21.5M32 39V12.5M36.5 41.5L49.5 21.5"/>
+      </symbol>
+      <symbol id="i-stats" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 20V11M10 20V4M16 20v-7M22 20H2"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5C4 4.1 5.1 3 6.5 3h11C18.9 3 20 4.1 20 5.5v9c0 1.4-1.1 2.5-2.5 2.5H11l-4.5 4v-4h0C5.1 17 4 15.9 4 14.5z"/><path d="M9.6 8.4a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1.1.9-1.1 1.6"/></g><circle cx="12" cy="14.6" r="1.1" fill="currentColor"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7.5 7.5L12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></g></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></g></symbol>
+      <symbol id="i-replay" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></g></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></g></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></g></symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></g></symbol>
+    </defs>
+  </svg>
+</body>
+</html>

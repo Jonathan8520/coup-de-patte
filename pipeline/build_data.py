@@ -311,8 +311,8 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         return persons[code]["nationalitycountrycode"]
 
     modes = {
-        "us": Mode("us", "Les Américains", "Barks, Rosa, Van Horn et les studios des États-Unis."),
-        "it": Mode("it", "Les Italiens", "Scarpa, Carpi, Cavazzano : l'école de Topolino."),
+        "us": Mode("us", "Les Américains", "Barks, Gottfredson, Murry : des strips des journaux aux comic books."),
+        "it": Mode("it", "Les Italiens", "Scarpa, Cavazzano, De Vita : l'école de Topolino."),
         "fr": Mode(
             "fr",
             "Magazines français",
