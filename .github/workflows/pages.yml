@@ -1,5 +1,6 @@
 name: Site
 
+# Publie le dossier site/ sur la branche gh-pages, servie par GitHub Pages.
 on:
   push:
     branches: [main]
@@ -11,9 +12,7 @@ on:
   workflow_call:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -23,9 +22,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       # Appelé après la mise à jour des données : on prend la dernière version de la branche,
       # pas le commit qui a déclenché le workflow.
@@ -40,14 +36,18 @@ jobs:
       - name: Vérifier le site et les données
         run: node scripts/check-site.mjs
 
-      # Active GitHub Pages (source : GitHub Actions) au premier déploiement.
-      - uses: actions/configure-pages@v6
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Publier sur gh-pages
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          version="$(git rev-parse --short HEAD)"
+          sed -i "s/__VERSION__/${version}/g" site/index.html site/sw.js 2>/dev/null || true
+          cd site
+          touch .nojekyll
+          git init --quiet --initial-branch gh-pages
+          git config user.name "Jonathan Levy"
+          git config user.email "jonathan.levy2@etu.univ-paris1.fr"
+          git add --all
+          git commit --quiet -m "deploy: ${version}"
+          git push --force --quiet "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" gh-pages
+          echo "Publié : https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" | tr '[:upper:]' '[:lower:]'

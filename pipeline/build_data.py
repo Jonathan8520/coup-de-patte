@@ -53,8 +53,8 @@ TABLES: dict[str, tuple[str, ...]] = {
 # Noms alternatifs déjà vus pour certaines colonnes.
 ALIASES = {"is_cover": ("iscover", "isCover")}
 
-# Sites qui ne contiennent que des copies réduites d'autres sites.
-DERIVATIVE_SITES = ("thumbnails",)
+# Sites qui ne contiennent que des copies réduites ou renommées d'autres sites.
+DERIVATIVE_SITES = ("thumbnails", "renamed")
 
 MIN_ITEMS_PER_ARTIST = 6
 MAX_ITEMS_PER_ARTIST = 60
@@ -77,6 +77,8 @@ class Mode:
     blurb: str
     items: list[dict] = field(default_factory=list)
     artists: list[str] = field(default_factory=list)
+    # Nombre total d'histoires jouables par dessinateur (avant plafonnement) : sert de poids au tirage.
+    counts: list[int] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------
@@ -197,11 +199,16 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     log.info("Numéros français depuis %d : %d", recent_from, len(recent_french_issues))
 
     recent_french_stories: Counter[str] = Counter()
+    french_titles: dict[str, str] = {}
     scanned_entries: dict[str, dict] = {}
     for row in data["inducks_entry"]:
         svc = row["storyversioncode"]
         if not svc:
             continue
+        if row["languagecode"] == "fr" and row["title"]:
+            story = versions.get(svc, ("", ""))[0]
+            if story and story not in french_titles:
+                french_titles[story] = row["title"]
         if row["issuecode"] in recent_french_issues:
             story = versions.get(svc, ("", ""))[0]
             if story:
@@ -258,7 +265,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
                 "story": storycode,
                 "artist": artist,
                 "image": image,
-                "title": entry["title"] or story.get("title", ""),
+                "title": french_titles.get(storycode) or story.get("title", "") or entry["title"],
                 "originalTitle": story.get("title", ""),
                 "year": year_of(story.get("firstpublicationdate", "")),
                 "issue": entry["issuecode"],
@@ -293,13 +300,17 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 
     def fill(mode: Mode, keep) -> None:
         pool: dict[str, list[dict]] = {}
+        totals: dict[str, int] = {}
         for artist, artist_items in by_artist.items():
             selected = [item for item in artist_items if keep(item)]
             if len(selected) >= MIN_ITEMS_PER_ARTIST:
                 selected.sort(key=lambda item: stable_key(mode.id, item["id"]))
+                totals[artist] = len({item["story"] for item in selected})
                 pool[artist] = selected[:MAX_ITEMS_PER_ARTIST]
-        ranked = sorted(pool, key=lambda a: (-len(pool[a]), a))[:MAX_ARTISTS_PER_MODE]
+        # Les plus publiés d'abord, et non l'ordre alphabétique.
+        ranked = sorted(pool, key=lambda a: (-totals[a], a))[:MAX_ARTISTS_PER_MODE]
         mode.artists = ranked
+        mode.counts = [totals[a] for a in ranked]
         mode.items = [item for artist in ranked for item in pool[artist]]
 
     fill(modes["us"], lambda item: nationality(item["artist"]) == "us")
@@ -339,9 +350,29 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 # Défis du jour
 
 
+def weight(count: int) -> float:
+    """Les dessinateurs prolifiques sortent plus souvent, sans écraser les autres."""
+    return max(count, 1) ** 0.5
+
+
+def weighted_sample(rng: random.Random, codes: list[str], counts: list[int], k: int) -> list[str]:
+    pool = list(zip(codes, counts or [1] * len(codes)))
+    chosen = []
+    while len(chosen) < k and pool:
+        total = sum(weight(c) for _, c in pool)
+        pick = rng.random() * total
+        for index, (code, count) in enumerate(pool):
+            pick -= weight(count)
+            if pick <= 0:
+                break
+        chosen.append(code)
+        pool.pop(index)
+    return chosen
+
+
 def daily_game(mode: Mode, day: dt.date) -> dict:
     rng = random.Random(f"coup-de-patte/{day.isoformat()}/{mode.id}")
-    artists = rng.sample(mode.artists, ARTISTS_PER_GAME)
+    artists = weighted_sample(rng, mode.artists, mode.counts, ARTISTS_PER_GAME)
     answers = rng.sample(artists, ROUNDS_PER_GAME)
     by_artist: dict[str, list[dict]] = defaultdict(list)
     for item in mode.items:
@@ -418,7 +449,12 @@ def write_outputs(out: Path, artists: dict, modes: dict[str, Mode], today: dt.da
     for mode in modes.values():
         write_json(
             out / f"mode-{mode.id}.json",
-            {"mode": mode.id, "artists": mode.artists, "items": [compact_item(i) for i in mode.items]},
+            {
+                "mode": mode.id,
+                "artists": mode.artists,
+                "counts": mode.counts,
+                "items": [compact_item(i) for i in mode.items],
+            },
         )
     write_json(out / "artists.json", artists)
     write_json(daily_path, daily)
