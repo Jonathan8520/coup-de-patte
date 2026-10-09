@@ -94,7 +94,7 @@ async function play(setup, { dailyNumber } = {}) {
     onFinish: ({ score, results }) => {
       current = null;
       recordGame({ kind: setup.kind, mode: setup.modeId, day: setup.day, score, results });
-      endView(root, { setup, score, results, people: dict, modeName: setup.modeName, dailyNumber, onReplay: replay });
+      swap(() => endView(root, { setup, score, results, people: dict, modeName: setup.modeName, dailyNumber, onReplay: replay }));
     },
     onQuit: () => {
       current = null;
@@ -102,7 +102,8 @@ async function play(setup, { dailyNumber } = {}) {
       else location.hash = "#/";
     },
   });
-  current.mount();
+  const game = current;
+  swap(() => game.mount());
 }
 
 async function startMode(modeId) {
