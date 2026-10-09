@@ -17,7 +17,10 @@ from pathlib import Path
 
 import build_data as bd
 
-EXTRA = {"inducks_personalias": ("personcode", "surname", "givenname")}
+EXTRA = {
+    "inducks_personalias": ("personcode", "surname", "givenname", "official"),
+    "inducks_person": (*bd.TABLES["inducks_person"], "official", "birthname"),
+}
 
 
 def main(argv=None) -> int:
@@ -68,10 +71,17 @@ def main(argv=None) -> int:
 
     # Les cases réellement retenues par build_data.py, après tous ses filtres
     # (dont les dessins repris d'un autre : remakes, calques, jeux).
-    bd.build(data, dt.date.today())
+    _, modes, _, _ = bd.build(data, dt.date.today())
     kept = defaultdict(int)
     for artist in bd.ELIGIBLE.values():
         kept[artist] += 1
+    ranking = sorted(kept, key=lambda a: -kept[a])
+    rank_of = {code: i + 1 for i, code in enumerate(ranking)}
+    aliases: dict[str, list[str]] = defaultdict(list)
+    for row in data["inducks_personalias"]:
+        full = " ".join(part for part in (row["givenname"], row["surname"]) if part)
+        if full:
+            aliases[row["personcode"]].append(full + (" (officiel)" if row["official"] == "Y" else ""))
 
     lines = [
         "| Recherche | Fiche Inducks | Nationalité | Histoires dessinées | En planches | Seul dessinateur | Scan public de la page 1 | Retenues (dessin de sa main) |",
@@ -102,6 +112,21 @@ def main(argv=None) -> int:
                 f"| {wanted} | {person.get('fullname', '?')} ({code}) | {person.get('nationalitycountrycode') or 'non renseignée'} "
                 f"| {len(mine)} | {len(planches)} | {len(seul)} | {len(scanned)} | {kept.get(code, 0)} |"
             )
+    lines += ["", "| Fiche Inducks | Autres noms | Rang (cases retenues) | Modes où il figure (rang) |", "|---|---|---|---|"]
+    for wanted in args.names:
+        key = bd.fold(wanted)
+        for code in [c for c, names in names_of.items() if key in names]:
+            in_modes = [f"{m.id} ({m.artists.index(code) + 1}/{len(m.artists)})" for m in modes.values() if code in m.artists]
+            lines.append(
+                f"| {persons[code]['fullname']} ({code}) | {', '.join(aliases.get(code, [])) or '-'} "
+                f"| {rank_of.get(code, '-')} sur {len(ranking)} | {', '.join(in_modes) or 'aucun'} |"
+            )
+    counts = sorted(kept.values(), reverse=True)
+    lines += [
+        "",
+        f"Dessinateurs avec au moins 6 cases retenues : {sum(n >= 6 for n in counts)} ; au moins 30 : {sum(n >= 30 for n in counts)} ; "
+        f"au moins 100 : {sum(n >= 100 for n in counts)}. Le 60e en a {counts[59] if len(counts) >= 60 else '-'}.",
+    ]
     report = "\n".join(lines)
     print(report)
     if args.summary:
