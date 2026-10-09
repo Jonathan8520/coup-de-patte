@@ -123,9 +123,10 @@ def iter_isv(stream: io.TextIOBase, wanted: tuple[str, ...], table: str) -> Iter
         log.info("%s : %d lignes incomplètes ignorées", table, skipped)
 
 
-def load_tables(archive: Path) -> dict[str, list[dict]]:
+def load_tables(archive: Path, tables: dict[str, tuple[str, ...]] | None = None) -> dict[str, list[dict]]:
     """Charge les tables utiles en une seule lecture de l'archive compressée."""
-    wanted_files = {f"{table}.isv": table for table in TABLES}
+    tables = tables or TABLES
+    wanted_files = {f"{table}.isv": table for table in tables}
     data: dict[str, list[dict]] = {}
     mode = "r:gz" if archive.suffix in (".tgz", ".gz") else "r"
     with tarfile.open(archive, mode) as tar:
@@ -138,10 +139,10 @@ def load_tables(archive: Path) -> dict[str, list[dict]]:
             if raw is None:
                 continue
             text = io.TextIOWrapper(raw, encoding="utf-8", errors="replace", newline="")
-            rows = list(iter_isv(text, TABLES[table], table))
+            rows = list(iter_isv(text, tables[table], table))
             data[table] = rows
             log.info("%-22s %9d lignes", table, len(rows))
-    absent = sorted(set(TABLES) - set(data))
+    absent = sorted(set(tables) - set(data))
     if absent:
         raise SystemExit(f"Tables introuvables dans l'archive : {absent}")
     return data

@@ -1,0 +1,40 @@
+name: Pourquoi ce dessinateur ?
+
+# Outil manuel : explique pourquoi des dessinateurs sont présents ou absents du jeu.
+# Onglet Actions, « Pourquoi ce dessinateur ? », Run workflow, puis lire le résumé du run.
+on:
+  workflow_dispatch:
+    inputs:
+      noms:
+        description: "Noms ou pseudonymes, séparés par des virgules"
+        required: true
+        default: "Dav, René Guillaume, François Pasquet, Patrice Croci, Mac, Pierre Nicolas"
+
+permissions:
+  contents: read
+
+jobs:
+  explain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Télécharger l'export Inducks
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 30 \
+            --user-agent "coup-de-patte/1.0 (+https://github.com/${{ github.repository }})" \
+            --output isv.tgz https://inducks.org/inducks/isv.tgz
+
+      - name: Diagnostic
+        env:
+          NOMS: ${{ inputs.noms }}
+        run: |
+          IFS=',' read -ra names <<< "$NOMS"
+          trimmed=()
+          for n in "${names[@]}"; do trimmed+=("$(echo "$n" | xargs)"); done
+          python pipeline/explain.py --archive isv.tgz --summary "$GITHUB_STEP_SUMMARY" "${trimmed[@]}"
