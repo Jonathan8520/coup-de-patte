@@ -39,11 +39,11 @@ def make_archive(path: Path) -> None:
         ["fr/PM 100", "fr/PM", "1975-03-01"],
         ["us/WDC 100", "us/WDC", "1950-01-01"],
     ]
-    for nat, prefix in (("us", "U"), ("it", "I")):
-        for a in range(10):
+    for nat, prefix, count in (("us", "U", 10), ("it", "I", 10), ("fr", "F", 9)):
+        for a in range(count):
             code = f"{prefix}{a}"
             persons.append([code, nat, f"Artiste {code}", "N", "1930-01-01", "", f"{code}.jpg"])
-            for s in range(8):
+            for s in range(8 if nat != "fr" else 5):
                 storycode = f"{prefix} {a}-{s}"
                 svc = f"{storycode}A"
                 stories.append([storycode, f"Story {storycode}", f"19{50 + s}-01-01"])
@@ -120,7 +120,7 @@ class PipelineTest(unittest.TestCase):
     def test_modes_and_filters(self) -> None:
         self.run_pipeline()
         meta = self.read("meta.json")
-        self.assertEqual({m["id"] for m in meta["modes"]}, {"us", "it", "fr"})
+        self.assertEqual({m["id"] for m in meta["modes"]}, {"us", "it", "fr", "francais", "tous"})
         us = self.read("mode-us.json")
         ids = {row[0] for row in us["items"]}
         self.assertEqual(len(us["artists"]), 10)
@@ -133,6 +133,12 @@ class PipelineTest(unittest.TestCase):
         self.assertTrue(all(not row[1].endswith(("-6", "-7")) for row in fr["items"]))
         self.assertEqual(len(fr["items"]), 120)
         self.assertNotIn("debutant", {m["id"] for m in self.read("meta.json")["modes"]})
+        # Les Français entrent dès quatre cases ici, mais pas dans « Tous » (six cases minimum).
+        francais = self.read("mode-francais.json")
+        self.assertEqual(len(francais["artists"]), 9)
+        self.assertTrue(all(code.startswith("F") for code in francais["artists"]))
+        tous = self.read("mode-tous.json")
+        self.assertEqual({code[0] for code in tous["artists"]}, {"U", "I"})
 
     def test_daily_is_stable_and_complete(self) -> None:
         self.run_pipeline()

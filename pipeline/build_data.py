@@ -73,7 +73,11 @@ DAILY_DAYS_AHEAD = 35
 LAUNCH_DATE = dt.date(2026, 10, 9)
 
 # Rotation des défis du jour, du lundi au dimanche.
-DAILY_ROTATION = ("fr", "it", "us", "fr", "it", "us", "debutant")
+# Les jours déjà publiés gardent leur mode : seule la suite du calendrier suit cette rotation.
+DAILY_ROTATION = ("francais", "it", "us", "egmont", "tous", "fr", "debutant")
+# Nombre de dessinateurs et de cases par dessinateur pour le mode « Tous les dessinateurs ».
+ALL_ARTISTS = 60
+ALL_ITEMS_PER_ARTIST = 30
 
 
 @dataclass
@@ -313,10 +317,25 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     modes = {
         "us": Mode("us", "Les Américains", "Barks, Gottfredson, Murry et les autres dessinateurs des États-Unis."),
         "it": Mode("it", "Les Italiens", "Scarpa, Cavazzano, De Vita : l'école de Topolino."),
+        "francais": Mode(
+            "francais",
+            "Les Français",
+            "Les dessinateurs français, du Journal de Mickey à Picsou Magazine.",
+        ),
+        "egmont": Mode(
+            "egmont",
+            "L'école Egmont",
+            "Vicar, Jippes, Branca, Heymans : les histoires produites pour l'Europe du Nord.",
+        ),
         "fr": Mode(
             "fr",
-            "Magazines français",
-            f"Les histoires parues dans la presse française depuis {recent_from}.",
+            "Lu en France",
+            f"Tout ce que la presse française a publié depuis {recent_from}, d'où qu'il vienne.",
+        ),
+        "tous": Mode(
+            "tous",
+            "Tous les dessinateurs",
+            "Les soixante dessinateurs les plus publiés, tous pays et toutes époques confondus.",
         ),
         "debutant": Mode(
             "debutant",
@@ -325,23 +344,28 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         ),
     }
 
-    def fill(mode: Mode, keep) -> None:
+    def fill(mode: Mode, keep, *, max_artists=MAX_ARTISTS_PER_MODE, max_items=MAX_ITEMS_PER_ARTIST, min_items=MIN_ITEMS_PER_ARTIST) -> None:
         pool: dict[str, list[dict]] = {}
         totals: dict[str, int] = {}
         for artist, artist_items in by_artist.items():
             selected = [item for item in artist_items if keep(item)]
-            if len(selected) >= MIN_ITEMS_PER_ARTIST:
+            if len(selected) >= min_items:
                 selected.sort(key=lambda item: stable_key(mode.id, item["id"]))
                 totals[artist] = len({item["story"] for item in selected})
-                pool[artist] = selected[:MAX_ITEMS_PER_ARTIST]
+                pool[artist] = selected[:max_items]
         # Les plus publiés d'abord, et non l'ordre alphabétique.
-        ranked = sorted(pool, key=lambda a: (-totals[a], a))[:MAX_ARTISTS_PER_MODE]
+        ranked = sorted(pool, key=lambda a: (-totals[a], a))[:max_artists]
         mode.artists = ranked
         mode.counts = [totals[a] for a in ranked]
         mode.items = [item for artist in ranked for item in pool[artist]]
 
     fill(modes["us"], lambda item: nationality(item["artist"]) == "us")
     fill(modes["it"], lambda item: nationality(item["artist"]) == "it")
+    # Les Français ont moins de planches scannées : on accepte les dessinateurs dès quatre cases.
+    fill(modes["francais"], lambda item: nationality(item["artist"]) == "fr", min_items=4)
+    # Les codes d'histoire « D » sont ceux des productions Egmont (Danemark).
+    fill(modes["egmont"], lambda item: item["story"].startswith("D "))
+    fill(modes["tous"], lambda item: True, max_artists=ALL_ARTISTS, max_items=ALL_ITEMS_PER_ARTIST)
     fill(modes["fr"], lambda item: recent_french_stories[item["story"]] > 0)
 
     wanted = {fold(name) for name in BEGINNER_NAMES}
@@ -355,6 +379,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             del modes[mode.id]
         else:
             log.info("Mode %-9s %3d dessinateurs, %5d cases", mode.id, len(mode.artists), len(mode.items))
+            log.info("    %s", ", ".join(f"{clean_name(persons[a]['fullname'])} ({n})" for a, n in zip(mode.artists, mode.counts)))
 
     used = {a for mode in modes.values() for a in mode.artists}
     artists = {}
