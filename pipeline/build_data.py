@@ -39,7 +39,7 @@ TABLES: dict[str, tuple[str, ...]] = {
         "entrycode", "issuecode", "storyversioncode", "languagecode", "title",
         "is_cover", "mirrored", "sideways",
     ),
-    "inducks_storyversion": ("storyversioncode", "storycode", "kind"),
+    "inducks_storyversion": ("storyversioncode", "storycode", "kind", "entirepages", "rowsperpage"),
     "inducks_storyjob": ("storyversioncode", "personcode", "plotwritartink", "doubt"),
     "inducks_person": (
         "personcode", "nationalitycountrycode", "fullname", "isfake",
@@ -146,6 +146,13 @@ def year_of(value: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def to_int(value: str) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def stable_key(*parts: str) -> str:
     return hashlib.sha1("|".join(parts).encode()).hexdigest()
 
@@ -181,6 +188,14 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     versions = {
         row["storyversioncode"]: (row["storycode"], row["kind"])
         for row in data["inducks_storyversion"]
+    }
+    # Une vraie planche : au moins une page entière et trois bandes ou plus.
+    # Écarte les strips de journaux, dont le « premier scan » n'est qu'une bande.
+    page_layout = {
+        row["storyversioncode"]
+        for row in data["inducks_storyversion"]
+        if (to_int(row["entirepages"]) or 0) >= 1
+        and (to_int(row["rowsperpage"]) is None or to_int(row["rowsperpage"]) >= 3)
     }
 
     # 2. Publications françaises récentes (pour le mode « magazines français »).
@@ -244,7 +259,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             continue
         svc = entry["storyversioncode"]
         storycode, kind = versions.get(svc, ("", ""))
-        if kind != "n" or not storycode:
+        if kind != "n" or not storycode or svc not in page_layout:
             continue
         artists = artists_of.get(svc, set())
         if len(artists) != 1:
@@ -254,11 +269,11 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             continue
         image, url = scans[entrycode]
         french = entry["languagecode"] == "fr" or url.rsplit("/", 1)[-1].startswith("fr_")
-        rank = (0 if french else 1, url)
-        if svc in best and best[svc][0] <= rank:
+        rank = (0 if french else 1, 0 if svc.startswith(storycode) else 1, url)
+        if storycode in best and best[storycode][0] <= rank:
             continue
         story = stories.get(storycode, {})
-        best[svc] = (
+        best[storycode] = (
             rank,
             {
                 "id": svc,

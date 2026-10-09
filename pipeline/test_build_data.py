@@ -47,7 +47,7 @@ def make_archive(path: Path) -> None:
                 storycode = f"{prefix} {a}-{s}"
                 svc = f"{storycode}A"
                 stories.append([storycode, f"Story {storycode}", f"19{50 + s}-01-01"])
-                versions.append([svc, storycode, "n"])
+                versions.append([svc, storycode, "n", "10", "4"])
                 jobs.append([svc, code, "a", "N"])
                 jobs.append([svc, "W1", "s", "N"])
                 issue = "fr/PM 500" if s < 6 else "us/WDC 100"
@@ -65,10 +65,11 @@ def make_archive(path: Path) -> None:
         ("X 2A", ["U1"], "1", "Y"),
         ("X 3A", ["U1"], "0", "N"),
         ("X 4A", ["?"], "0", "Y"),
+        ("X 5A", ["U1"], "0", "Y"),
     ):
         storycode = svc[:-1]
         stories.append([storycode, "Piège", "1960"])
-        versions.append([svc, storycode, "n"])
+        versions.append([svc, storycode, "n", "0" if svc == "X 5A" else "10", "1" if svc == "X 5A" else "4"])
         for artist in artists:
             jobs.append([svc, artist, "a", "N"])
         entries.append([f"e{svc}", "fr/PM 500", svc, "fr", "Piège", cover, "N", "N"])
@@ -79,7 +80,7 @@ def make_archive(path: Path) -> None:
         persons,
     )
     files["inducks_story.isv"] = isv(["storycode", "title", "firstpublicationdate"], stories)
-    files["inducks_storyversion.isv"] = isv(["storyversioncode", "storycode", "kind"], versions)
+    files["inducks_storyversion.isv"] = isv(["storyversioncode", "storycode", "kind", "entirepages", "rowsperpage"], versions)
     files["inducks_storyjob.isv"] = isv(["storyversioncode", "personcode", "plotwritartink", "doubt"], jobs)
     files["inducks_entry.isv"] = isv(
         ["entrycode", "issuecode", "storyversioncode", "languagecode", "title", "is_cover", "mirrored", "sideways"],
@@ -124,7 +125,7 @@ class PipelineTest(unittest.TestCase):
         ids = {row[0] for row in us["items"]}
         self.assertEqual(len(us["artists"]), 10)
         self.assertEqual(len(ids), 80)
-        for trap in ("X 1A", "X 2A", "X 3A", "X 4A"):
+        for trap in ("X 1A", "X 2A", "X 3A", "X 4A", "X 5A"):
             self.assertNotIn(trap, ids)
         # Le scan de l'édition française est préféré, jamais le site de vignettes.
         self.assertTrue(all("/fr_" in row[3] and "thumbnails" not in row[3] for row in us["items"]))

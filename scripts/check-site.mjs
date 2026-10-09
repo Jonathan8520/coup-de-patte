@@ -30,8 +30,9 @@ if (!existsSync(join(site, "data/meta.json"))) {
     }
     console.log(`Mode ${mode.id} : ${data.artists.length} dessinateurs, ${data.items.length} cases`);
   }
-  const daily = read("data/daily.json");
-  const archive = read("data/archive.json");
+  const hasDaily = existsSync(join(site, "data/daily.json"));
+  const daily = hasDaily ? read("data/daily.json") : { days: {} };
+  const archive = hasDaily ? read("data/archive.json") : { items: [] };
   const known = new Set(archive.items.map((row) => row[0]));
   for (const [day, game] of Object.entries(daily.days)) {
     for (const id of game.rounds) {
