@@ -1,9 +1,9 @@
 // Écrans : accueil, fin de partie, défis, statistiques et aide.
 
 import { h, icon, number, dayKey, formatDay, formatFullDate, daysBetween, untilMidnight, parseDay, plural, shareOrCopy, toast } from "./util.js";
-import { loadMeta, loadArtists, loadDaily, imageUrl } from "./data.js";
-import { getState, dailyResult, dailyStreak, medalFor, nextMedal, markOf, resetAll } from "./store.js";
-import { openSheet, confirmDialog, close } from "./dialogs.js";
+import { loadMeta, loadArtists, loadDaily, loadMode, imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan } from "./data.js";
+import { getState, dailyResult, archiveResult, dailyStreak, medalFor, nextMedal, markOf, resetAll } from "./store.js";
+import { openSheet, confirmDialog, close, openPicture } from "./dialogs.js";
 import { viewTransform, SAFE } from "./game.js";
 
 export const SITE_URL = "https://jonathan8520.github.io/coup-de-patte/";
@@ -117,7 +117,7 @@ function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function modePanel(mode, artists, wide) {
+function modePanel(mode, artists) {
   const stats = getState().modes[mode.id];
   const medal = stats ? medalFor(stats.correct) : null;
   const record = stats?.best
@@ -125,11 +125,43 @@ function modePanel(mode, artists, wide) {
     : h("span", { class: "muted" }, `${plural(mode.artists, "dessinateur", "dessinateurs")}`);
   return h(
     "a",
-    { class: `panel mode-link ${wide ? "panel-wide" : "panel-mode"}`, href: `#/jouer/${mode.id}` },
-    h("h2", { class: "mode-name" }, mode.name),
+    { class: "panel mode-link", href: `#/jouer/${mode.id}` },
+    h("h3", { class: "mode-name" }, mode.name),
     h("p", { class: "mode-blurb" }, mode.blurb),
     h("p", { class: "mode-names" }, namesLine(mode.faces, artists, mode.artists)),
     h("div", { class: "mode-foot" }, record, h("span", { class: "mode-play" }, "Jouer")),
+  );
+}
+
+function linkPanel({ href, title, blurb, foot, action }) {
+  return h(
+    "a",
+    { class: "panel mode-link", href },
+    h("h3", { class: "mode-name" }, title),
+    h("p", { class: "mode-blurb" }, blurb),
+    h("div", { class: "mode-foot" }, h("span", { class: "muted" }, foot), h("span", { class: "mode-play" }, action)),
+  );
+}
+
+// Regroupement des modes sur la page d'accueil. Un mode inconnu rejoint le dernier groupe.
+const GROUPS = [
+  { title: "Pour commencer", ids: ["debutant", "tous"], extra: "atelier" },
+  { title: "Par école", ids: ["us", "it", "francais", "egmont"] },
+  { title: "Autrement", ids: ["fr"], extra: "archives" },
+];
+
+export function pastDays(daily, today = dayKey()) {
+  if (!daily?.days) return [];
+  return Object.keys(daily.days).filter((day) => day < today && day >= daily.launch).sort().reverse();
+}
+
+function tier(title, panels) {
+  const count = panels.filter(Boolean).length;
+  return h(
+    "section",
+    { class: "tier", "aria-label": title },
+    h("h2", { class: "caption" }, title),
+    h("div", { class: `tier-grid tier-${Math.min(count, 4)}` }, panels),
   );
 }
 
@@ -142,9 +174,34 @@ export async function homeView(root) {
     return () => root.replaceChildren(emptyState());
   }
   return () => {
-    const modes = [...meta.modes];
-    const beginner = modes.find((m) => m.id === "debutant");
-    const others = modes.filter((m) => m.id !== "debutant");
+    const byId = new Map(meta.modes.map((m) => [m.id, m]));
+    const placed = new Set(GROUPS.flatMap((g) => g.ids));
+    const leftovers = meta.modes.filter((m) => !placed.has(m.id));
+    const past = pastDays(daily);
+    const totalArtists = Object.keys(artists).length;
+    const extras = {
+      atelier: linkPanel({
+        href: "#/atelier",
+        title: "L'atelier",
+        blurb: "Feuillette les planches de chaque dessinateur pour apprendre à reconnaître son trait.",
+        foot: `${number.format(totalArtists)} dessinateurs`,
+        action: "Ouvrir",
+      }),
+      archives: linkPanel({
+        href: "#/defis",
+        title: "Défis précédents",
+        blurb: "Rejoue les défis des jours passés, sans toucher à ta série.",
+        foot: past.length ? plural(past.length, "défi", "défis") : "Le premier arrive demain",
+        action: "Voir",
+      }),
+    };
+    const tiers = GROUPS.map((group, index) => {
+      const modes = group.ids.map((id) => byId.get(id)).filter(Boolean);
+      if (index === GROUPS.length - 1) modes.push(...leftovers);
+      const panels = modes.map((mode) => modePanel(mode, artists));
+      if (group.extra) panels.push(extras[group.extra]);
+      return panels.length ? tier(group.title, panels) : null;
+    });
     root.replaceChildren(
       h(
         "div",
@@ -169,9 +226,8 @@ export async function homeView(root) {
             ),
           ),
           dailyPanel(meta, daily),
-          beginner ? modePanel(beginner, artists, true) : null,
-          others.map((mode) => modePanel(mode, artists, false)),
         ),
+        tiers,
         h(
           "footer",
           { class: "home-foot" },
@@ -243,7 +299,17 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
   const head = h(
     "header",
     { class: "end-head" },
-    h("p", { class: "end-kicker" }, setup.kind === "daily" ? `Défi du jour n°${dailyNumber} (${modeName})` : setup.kind === "challenge" ? `Défi entre amis (${modeName})` : modeName),
+    h(
+      "p",
+      { class: "end-kicker" },
+      setup.kind === "daily"
+        ? `Défi du jour n°${dailyNumber} (${modeName})`
+        : setup.kind === "archive"
+          ? `Défi n°${dailyNumber} du ${formatDay(setup.day)} (${modeName}), rejoué`
+          : setup.kind === "challenge"
+            ? `Défi entre amis (${modeName})`
+            : modeName,
+    ),
     h("p", { class: "end-score", "aria-label": `${score} points` }, scoreEl, h("small", {}, " pts")),
     h("p", { class: "end-verdict" }, `${correct} sur ${total}. ${verdictFor(correct, total)}`),
   );
@@ -263,7 +329,7 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
   }
 
   const actions = h("div", { class: "btn-row" });
-  if (setup.kind === "daily") {
+  if (setup.kind === "daily" || setup.kind === "archive") {
     actions.append(
       h(
         "button",
@@ -499,6 +565,8 @@ export async function openAbout() {
         {},
         (meta?.modes || []).map((m) => h("li", {}, h("b", {}, m.name), ` : ${m.blurb}`)),
         h("li", {}, h("b", {}, "Défi du jour"), " : les mêmes cases pour tout le monde, une seule tentative, à partager ensuite."),
+        h("li", {}, h("b", {}, "Défis précédents"), " : les défis des jours passés, à rejouer autant que tu veux."),
+        h("li", {}, h("b", {}, "L'atelier"), " : quelques planches de chaque dessinateur, pour s'entraîner l'œil avant de jouer."),
       ),
     ),
     h(
@@ -536,4 +604,153 @@ export async function openAbout() {
       h("p", {}, h("a", { href: "https://github.com/Jonathan8520/coup-de-patte", target: "_blank", rel: "noopener" }, "Code source sur GitHub"), "."),
     ),
   ]);
+}
+
+// ------------------------------------------------------------------ l'atelier
+
+function sampleThumb(item, artist) {
+  const box = h("button", { class: "sample", type: "button", "aria-label": `Voir la planche « ${item.title || item.original || "Sans titre"} »` });
+  const img = new Image();
+  img.alt = "";
+  img.decoding = "async";
+  img.onload = () => {
+    const size = box.clientWidth || 140;
+    img.style.width = `${img.naturalWidth}px`;
+    img.style.height = `${img.naturalHeight}px`;
+    img.style.transform = viewTransform(size, size, img.naturalWidth, img.naturalHeight, SAFE);
+    box.append(img);
+    box.classList.add("ready");
+  };
+  img.onerror = () => box.classList.add("broken");
+  img.src = imageUrl(item);
+  box.addEventListener("click", () =>
+    openPicture({
+      src: imageUrl(item),
+      alt: `Planche de ${artist.name}`,
+      caption: [
+        h("strong", {}, `« ${item.title || item.original || "Sans titre"} »`),
+        item.year ? ` (${item.year}), ` : ", ",
+        h("a", { href: storyUrl(item.story), target: "_blank", rel: "noopener" }, "voir l'histoire sur Inducks"),
+      ],
+    }),
+  );
+  return box;
+}
+
+function artistEntry(code, artist, count, items, index) {
+  const id = `artiste-${index}`;
+  const photo = photoUrl(artist);
+  const face = h("span", { class: "face" }, h("b", { "aria-hidden": "true" }, artist.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase()));
+  if (photo) {
+    const img = h("img", { src: photo, alt: "", loading: "lazy", decoding: "async" });
+    img.addEventListener("load", () => face.querySelector("b")?.remove());
+    img.addEventListener("error", () => img.remove());
+    face.prepend(img);
+  }
+  const details = [countryName(artist.country), lifeSpan(artist)].filter(Boolean).join(", ");
+  const inner = h("div", { class: "artist-inner" });
+  const body = h("div", { class: "artist-body", id }, inner);
+  const article = h("article", { class: "artist" });
+  const toggle = h(
+    "button",
+    { class: "artist-head", type: "button", "aria-expanded": "false", "aria-controls": id },
+    face,
+    h("span", { class: "artist-id" }, h("strong", {}, artist.name), h("small", {}, [details, plural(count, "histoire", "histoires")].filter(Boolean).join(", "))),
+    h("span", { class: "chevron", "aria-hidden": "true" }),
+  );
+  let filled = false;
+  toggle.addEventListener("click", () => {
+    const open = !article.classList.contains("open");
+    if (open && !filled) {
+      filled = true;
+      inner.append(
+        h("div", { class: "samples" }, items.slice(0, 4).map((item) => sampleThumb(item, artist))),
+        h("p", { class: "artist-more" }, h("a", { href: artistUrl(code), target: "_blank", rel: "noopener" }, `Toute l'œuvre de ${artist.name} sur Inducks`)),
+      );
+    }
+    article.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+  });
+  article.append(toggle, body);
+  return article;
+}
+
+export async function atelierView(root, modeId) {
+  const [meta, artists] = await Promise.all([loadMeta(), loadArtists()]);
+  const order = GROUPS.flatMap((g) => g.ids);
+  const rank = (id) => (order.includes(id) ? order.indexOf(id) : order.length);
+  const modes = [...meta.modes].sort((x, y) => rank(x.id) - rank(y.id));
+  const current = modes.find((m) => m.id === modeId) || modes[0];
+  const mode = await loadMode(current.id);
+  return () => {
+    const tabs = h(
+      "nav",
+      { class: "tabs", "aria-label": "Choisir un groupe de dessinateurs" },
+      modes.map((m) =>
+        h("a", { class: "tab", href: `#/atelier/${m.id}`, "aria-current": m.id === current.id ? "page" : null }, m.name),
+      ),
+    );
+    root.replaceChildren(
+      h(
+        "div",
+        { class: "atelier" },
+        h(
+          "header",
+          { class: "atelier-head" },
+          h("h1", {}, "L'atelier"),
+          h("p", { class: "lede" }, "Ouvre un dessinateur pour voir quelques-unes de ses planches. Touche une planche pour l'afficher en entier."),
+        ),
+        tabs,
+        h(
+          "div",
+          { class: "artist-list" },
+          mode.artists.map((code, i) => artistEntry(code, artists[code] || { name: code }, mode.counts?.[i] || 0, mode._byArtist.get(code) || [], i)),
+        ),
+        h("div", { class: "btn-row atelier-foot" }, h("a", { class: "btn btn-yellow btn-balloon", href: `#/jouer/${current.id}` }, `Jouer : ${current.name}`)),
+      ),
+    );
+    tabs.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest", inline: "center" });
+  };
+}
+
+// ------------------------------------------------------------------ défis précédents
+
+export async function pastDailiesView(root) {
+  const [meta, daily] = await Promise.all([loadMeta(), loadDaily()]);
+  return () => {
+    const today = dayKey();
+    const days = [today, ...pastDays(daily, today)].filter((day) => daily.days[day]);
+    const rows = days.map((day) => {
+      const game = daily.days[day];
+      const n = daysBetween(daily.launch, day) + 1;
+      const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
+      const own = day === today ? dailyResult(day) : archiveResult(day) || dailyResult(day);
+      const status = own ? `${number.format(own.score)} pts` : day === today ? "À jouer aujourd'hui" : "Pas encore joué";
+      return h(
+        "li",
+        {},
+        h(
+          "a",
+          { class: "past", href: day === today ? "#/jour" : `#/jour/${day}` },
+          h("span", { class: "past-n" }, `n°${n}`),
+          h("span", { class: "past-what" }, h("strong", {}, capitalize(formatDay(day))), h("small", {}, modeName)),
+          h("span", { class: own ? "past-score" : "past-score muted" }, status),
+        ),
+      );
+    });
+    root.replaceChildren(
+      h(
+        "div",
+        { class: "atelier" },
+        h(
+          "header",
+          { class: "atelier-head" },
+          h("h1", {}, "Défis précédents"),
+          h("p", { class: "lede" }, "Les défis passés se rejouent autant de fois que tu veux. Seul le défi du jour compte pour ta série."),
+        ),
+        days.length > 1 ? null : h("p", { class: "muted" }, "Le premier défi est celui d'aujourd'hui : les suivants s'ajouteront ici jour après jour."),
+        h("ol", { class: "past-list" }, rows),
+      ),
+    );
+  };
 }

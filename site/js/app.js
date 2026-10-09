@@ -6,7 +6,7 @@ import { rngFrom, randomSeed, shuffle, pick, weightedSample } from "./rng.js";
 import { seenSet, recordGame, dailyResult, saveDailyProgress } from "./store.js";
 import { close } from "./dialogs.js";
 import { Game } from "./game.js";
-import { homeView, endView, dailyDoneView, challengeIntro, emptyState, openStats, openAbout, decodeChallenge } from "./views.js";
+import { homeView, endView, dailyDoneView, challengeIntro, emptyState, openStats, openAbout, decodeChallenge, atelierView, pastDailiesView } from "./views.js";
 
 const ARTISTS_PER_GAME = 9;
 const ROUNDS = 8;
@@ -97,8 +97,9 @@ async function play(setup, { dailyNumber } = {}, alive = () => true) {
     return;
   }
   setup.title = "Prêt ?";
-  setup.subtitle = setup.kind === "daily" ? `Défi du jour n°${dailyNumber}` : setup.modeName;
-  const replay = setup.kind === "mode" ? () => startMode(setup.modeId) : null;
+  setup.subtitle =
+    setup.kind === "daily" ? `Défi du jour n°${dailyNumber}` : setup.kind === "archive" ? `Défi n°${dailyNumber}, rejoué` : setup.modeName;
+  const replay = setup.kind === "mode" ? () => startMode(setup.modeId) : setup.kind === "archive" ? () => startDaily(setup.day) : null;
   stopCurrent();
   const game = new Game(root, setup, dict, {
     onFinish: ({ score, results }) => {
@@ -138,26 +139,33 @@ async function startMode(modeId) {
   }
 }
 
-async function startDaily() {
+async function startDaily(dateArg) {
+  stopCurrent();
   const alive = begin();
   const daily = await loadDaily().catch(() => null);
   if (!alive()) return;
   const today = dayKey();
-  const game = daily?.days?.[today];
-  if (!game) {
-    root.replaceChildren(emptyState("Le défi du jour n'est pas encore prêt. Reviens un peu plus tard."));
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(dateArg || "") ? dateArg : today;
+  if (day > today) {
+    root.replaceChildren(emptyState("Ce défi n'est pas encore sorti. Patience, il arrive ce jour-là."));
     return;
   }
-  const n = daysBetween(daily.launch, today) + 1;
+  const game = daily?.days?.[day];
+  if (!game) {
+    root.replaceChildren(emptyState(day === today ? "Le défi du jour n'est pas encore prêt. Reviens un peu plus tard." : "Ce défi n'existe pas."));
+    return;
+  }
+  const n = daysBetween(daily.launch, day) + 1;
   const meta = await loadMeta();
   if (!alive()) return;
   const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
-  const done = dailyResult(today);
+  const done = day === today ? dailyResult(today) : null;
   if (done) {
     dailyDoneView(root, { number: n, modeName, result: done });
     return;
   }
-  const setup = await fixedGame({ kind: "daily", modeId: game.mode, artistCodes: game.artists, roundIds: game.rounds, seed: `jour/${today}`, day: today });
+  const kind = day === today ? "daily" : "archive";
+  const setup = await fixedGame({ kind, modeId: game.mode, artistCodes: game.artists, roundIds: game.rounds, seed: `jour/${day}`, day });
   if (!alive()) return;
   if (!setup) {
     root.replaceChildren(emptyState("Le défi du jour est introuvable. Reviens dans quelques minutes."));
@@ -211,7 +219,19 @@ async function render() {
   window.scrollTo({ top: 0 });
   try {
     if (section === "jouer" && arg) return await startMode(decodeURIComponent(arg));
-    if (section === "jour") return await startDaily();
+    if (section === "jour") return await startDaily(arg);
+    if (section === "atelier") {
+      const alive = begin();
+      const mount = await atelierView(root, decodeURIComponent(arg || ""));
+      if (alive()) swap(mount);
+      return;
+    }
+    if (section === "defis") {
+      const alive = begin();
+      const mount = await pastDailiesView(root);
+      if (alive()) swap(mount);
+      return;
+    }
     if (section === "defi" && arg) return await startChallenge(arg);
     const alive = begin();
     const mount = await homeView(root);

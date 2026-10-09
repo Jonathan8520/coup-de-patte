@@ -5,6 +5,11 @@ name: Données Inducks
 on:
   schedule:
     - cron: "17 4 * * 1"
+  # Une modification du pipeline reconstruit aussitôt les données.
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/build_data.py"
   workflow_dispatch:
 
 permissions:

@@ -39,12 +39,12 @@ def make_archive(path: Path) -> None:
         ["fr/PM 100", "fr/PM", "1975-03-01"],
         ["us/WDC 100", "us/WDC", "1950-01-01"],
     ]
-    for nat, prefix, count in (("us", "U", 10), ("it", "I", 10), ("fr", "F", 9)):
+    for nat, prefix, count in (("us", "U", 10), ("it", "I", 10), ("fr", "F", 9), ("", "N", 1)):
         for a in range(count):
             code = f"{prefix}{a}"
             persons.append([code, nat, f"Artiste {code}", "N", "1930-01-01", "", f"{code}.jpg"])
-            for s in range(8 if nat != "fr" else 5):
-                storycode = f"{prefix} {a}-{s}"
+            for s in range(8 if nat not in ("fr", "") else 5):
+                storycode = f"{'F' if prefix == 'N' else prefix} {prefix}{a}-{s}"
                 svc = f"{storycode}A"
                 stories.append([storycode, f"Story {storycode}", f"19{50 + s}-01-01"])
                 versions.append([svc, storycode, "n", "10", "4"])
@@ -135,8 +135,10 @@ class PipelineTest(unittest.TestCase):
         self.assertNotIn("debutant", {m["id"] for m in self.read("meta.json")["modes"]})
         # Les Français entrent dès quatre cases ici, mais pas dans « Tous » (six cases minimum).
         francais = self.read("mode-francais.json")
-        self.assertEqual(len(francais["artists"]), 9)
-        self.assertTrue(all(code.startswith("F") for code in francais["artists"]))
+        # Le dessinateur sans nationalité mais aux histoires françaises (codes « F ») est inclus.
+        self.assertEqual(len(francais["artists"]), 10)
+        self.assertIn("N0", francais["artists"])
+        self.assertTrue(all(code[0] in "FN" for code in francais["artists"]))
         tous = self.read("mode-tous.json")
         self.assertEqual({code[0] for code in tous["artists"]}, {"U", "I"})
 

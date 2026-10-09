@@ -10,7 +10,7 @@ export const MEDALS = [
 ];
 
 function blank() {
-  return { v: 1, modes: {}, artists: {}, daily: {}, seen: [] };
+  return { v: 1, modes: {}, artists: {}, daily: {}, archives: {}, seen: [] };
 }
 
 let state = null;
@@ -61,6 +61,11 @@ export function recordGame({ kind, mode, day, score, results }) {
   if (kind === "daily" && day && (!s.daily[day] || s.daily[day].partial)) {
     s.daily[day] = { score, mode, marks: results.map(markOf) };
   }
+  // Défi passé rejoué : on garde le meilleur score, sans toucher à la série.
+  if (kind === "archive" && day) {
+    s.archives ||= {};
+    if (!s.archives[day] || s.archives[day].score < score) s.archives[day] = { score, mode, marks: results.map(markOf) };
+  }
   save();
 }
 
@@ -104,4 +109,8 @@ export function nextMedal(correct) {
 export function resetAll() {
   state = blank();
   save();
+}
+
+export function archiveResult(day) {
+  return load().archives?.[day] || null;
 }

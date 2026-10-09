@@ -132,3 +132,21 @@ export function confirmDialog({ title, text, confirm, cancel = "Annuler" }) {
     mount(dialog);
   });
 }
+
+// Planche entière en grand, avec sa légende.
+export function openPicture({ src, alt, caption }) {
+  const img = h("img", { src, alt: alt || "", decoding: "async" });
+  const dialog = h(
+    "dialog",
+    { class: "modal picture", "aria-label": alt || "Planche" },
+    h("div", { class: "scrim", "aria-hidden": "true" }),
+    h(
+      "div",
+      { class: "modal-inner" },
+      h("button", { class: "icon-btn picture-close", type: "button", "aria-label": "Fermer", onclick: () => close(dialog) }, icon("i-close")),
+      h("div", { class: "picture-frame" }, img),
+      caption ? h("div", { class: "picture-caption" }, caption) : null,
+    ),
+  );
+  return mount(dialog);
+}

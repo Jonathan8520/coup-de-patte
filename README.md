@@ -14,7 +14,9 @@ Un jeu pour reconnaître le trait des dessinateurs Disney (Barks, Rosa, Scarpa, 
 - **8 cases par partie, 9 dessinateurs proposés.** Chaque dessinateur n'est la bonne réponse qu'une fois : l'un des neuf est un leurre, et les réponses déjà données sont grisées.
 - **15 secondes par case.** 100 points par bonne réponse, plus un bonus de rapidité (jusqu'à 100 points) tant que la barre est jaune, soit 7,5 secondes.
 - **La case s'ouvre sur un détail puis s'élargit.** La bande du haut de la planche (titre, crédits) reste cachée jusqu'à la réponse, puis toute la page se dévoile avec le titre et le lien vers Inducks.
-- **Modes** : Débutant (grands noms aux styles marqués), Les Américains, Les Italiens, Magazines français (histoires parues en France depuis 20 ans).
+- **Modes** : Débutant (grands noms aux styles marqués), Tous les dessinateurs (les 60 plus publiés), Les Américains, Les Italiens, Les Français, L'école Egmont, Lu en France (tout ce qu'a publié la presse française depuis 20 ans).
+- **L'atelier** : quelques planches de chaque dessinateur, pour apprendre à reconnaître son trait.
+- **Défis précédents** : les défis des jours passés, à rejouer sans toucher à la série.
 - **Défi du jour** : les mêmes cases pour tout le monde, une tentative, résultat à partager en carrés de couleur.
 - **Défi entre amis** : un lien qui rejoue exactement les mêmes cases, avec le score à battre.
 - **Statistiques et médailles** gardées dans le navigateur (rien n'est envoyé nulle part).
@@ -43,6 +45,8 @@ GitHub Actions  ──────▶ │ data.yml                      │
 - Les images ne sont pas copiées dans le dépôt : le navigateur les affiche depuis Inducks.
 
 Lancer la mise à jour à la main : onglet *Actions*, workflow *Données Inducks*, *Run workflow*.
+
+Savoir pourquoi un dessinateur est absent : workflow *Pourquoi ce dessinateur ?*, avec les noms séparés par des virgules. Le résumé du run indique, étape par étape, combien de ses histoires passent les filtres (histoires dessinées, en planches, seul dessinateur, scan public de la première page).
 
 ## Organisation
 

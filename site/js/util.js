@@ -20,11 +20,16 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+// Typographie française : espace insécable avant « : ; ! ? » et à l'intérieur des guillemets.
+export function frenchSpaces(text) {
+  return text.replace(/ ([:;!?»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
+}
+
 function append(el, children) {
   for (const child of children) {
     if (child === undefined || child === null || child === false) continue;
     if (Array.isArray(child)) append(el, child);
-    else el.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    else el.append(child instanceof Node ? child : document.createTextNode(frenchSpaces(String(child))));
   }
 }
 

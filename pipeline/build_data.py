@@ -321,12 +321,12 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         "francais": Mode(
             "francais",
             "Les Français",
-            "Les dessinateurs français, du Journal de Mickey à Picsou Magazine.",
+            "Claude Marin, Pierre Nicolas, Thomas Cabellic : les dessinateurs du Journal de Mickey et de Picsou Magazine.",
         ),
         "egmont": Mode(
             "egmont",
             "L'école Egmont",
-            "Vicar, Jippes, Branca, Heymans : les histoires produites pour l'Europe du Nord.",
+            "Vicar, Branca, Ferioli, Midthun : les histoires produites pour l'Europe du Nord.",
         ),
         "fr": Mode(
             "fr",
@@ -362,8 +362,17 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 
     fill(modes["us"], lambda item: nationality(item["artist"]) == "us")
     fill(modes["it"], lambda item: nationality(item["artist"]) == "it")
-    # Les Français ont moins de planches scannées : on accepte les dessinateurs dès quatre cases.
-    fill(modes["francais"], lambda item: nationality(item["artist"]) == "fr", min_items=4)
+    # Les Français : nationalité française, ou nationalité non renseignée mais des histoires
+    # surtout produites en France (codes « F »). Moins de planches scannées : quatre cases suffisent.
+    french_made: dict[str, float] = {}
+    for artist, artist_items in by_artist.items():
+        french_made[artist] = sum(item["story"].startswith("F ") for item in artist_items) / len(artist_items)
+
+    def is_french(code: str) -> bool:
+        country = nationality(code)
+        return country == "fr" or (not country and french_made.get(code, 0) >= 0.6)
+
+    fill(modes["francais"], lambda item: is_french(item["artist"]), min_items=4)
     # Les codes d'histoire « D » sont ceux des productions Egmont (Danemark).
     fill(modes["egmont"], lambda item: item["story"].startswith("D "))
     fill(modes["tous"], lambda item: True, max_artists=ALL_ARTISTS, max_items=ALL_ITEMS_PER_ARTIST)
