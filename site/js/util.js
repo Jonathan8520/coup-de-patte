@@ -1,5 +1,7 @@
 // Petits outils DOM et formats.
 
+import { t, lang, locale, formatNumber } from "./i18n.js";
+
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(props || {})) {
@@ -22,6 +24,7 @@ export function h(tag, props = {}, ...children) {
 
 // Typographie française : espace insécable avant « : ; ! ? » et à l'intérieur des guillemets.
 export function frenchSpaces(text) {
+  if (lang() !== "fr") return text;
   return text.replace(/ ([:;!?»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
 }
 
@@ -45,10 +48,15 @@ export function icon(id, cls = "") {
   return svg;
 }
 
-export const number = new Intl.NumberFormat("fr-FR");
+// Nombres et dates au format de la langue choisie.
+export const number = { format: (n) => formatNumber(n) };
 
-const longDate = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-const fullDate = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+const formatters = new Map();
+function dateFormat(options) {
+  const key = `${locale()}|${JSON.stringify(options)}`;
+  if (!formatters.has(key)) formatters.set(key, new Intl.DateTimeFormat(locale(), options));
+  return formatters.get(key);
+}
 
 export function dayKey(date = new Date()) {
   const y = date.getFullYear();
@@ -63,11 +71,15 @@ export function parseDay(key) {
 }
 
 export function formatDay(key) {
-  return longDate.format(parseDay(key));
+  return dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(parseDay(key));
 }
 
 export function formatFullDate(key) {
-  return fullDate.format(parseDay(key));
+  return dateFormat({ day: "numeric", month: "long", year: "numeric" }).format(parseDay(key));
+}
+
+export function capitalize(text) {
+  return text.charAt(0).toLocaleUpperCase(locale()) + text.slice(1);
 }
 
 export function daysBetween(fromKey, toKey) {
@@ -79,7 +91,7 @@ export function untilMidnight(now = new Date()) {
   const total = Math.max(0, Math.floor((next - now) / 1000));
   const hh = Math.floor(total / 3600);
   const mm = Math.floor((total % 3600) / 60);
-  return `${hh} h ${String(mm).padStart(2, "0")}`;
+  return t("common.time_hm", { h: hh, m: String(mm).padStart(2, "0") });
 }
 
 export function reducedMotion() {
@@ -104,10 +116,6 @@ export function initials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function plural(n, one, many) {
-  return `${number.format(n)} ${n > 1 ? many : one}`;
-}
-
 // Écrit dans le presse-papiers, ou ouvre la feuille de partage du téléphone.
 export async function shareOrCopy({ title, text, url }) {
   const full = url ? `${text}\n${url}` : text;
@@ -121,10 +129,10 @@ export async function shareOrCopy({ title, text, url }) {
   }
   try {
     await navigator.clipboard.writeText(full);
-    toast("Copié dans le presse-papiers");
+    toast(t("common.copied"));
     return "copied";
   } catch {
-    window.prompt("Copie ce texte :", full);
+    window.prompt(t("common.copy_prompt"), full);
     return "prompted";
   }
 }

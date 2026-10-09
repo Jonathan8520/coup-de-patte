@@ -1,12 +1,14 @@
 // Point d'entrée : routes, construction des parties, service worker.
 
 import { dayKey, daysBetween, reducedMotion, toast } from "./util.js";
-import { loadMeta, loadArtists, loadMode, loadDaily, loadArchive, toItem } from "./data.js";
+import { loadMeta, loadArtists, loadMode, loadDaily, loadArchive, loadTitles, toItem } from "./data.js";
+import { initI18n, t } from "./i18n.js";
+import { modeName } from "./modes.js";
 import { rngFrom, randomSeed, shuffle, pick, weightedSample } from "./rng.js";
 import { seenSet, recordGame, dailyResult, saveDailyProgress } from "./store.js";
 import { close } from "./dialogs.js";
 import { Game } from "./game.js";
-import { homeView, endView, dailyDoneView, challengeIntro, emptyState, openStats, openAbout, decodeChallenge, atelierView, pastDailiesView } from "./views.js";
+import { homeView, endView, dailyDoneView, challengeIntro, emptyState, openStats, openAbout, openLanguage, decodeChallenge, atelierView, pastDailiesView } from "./views.js";
 
 const ARTISTS_PER_GAME = 9;
 const ROUNDS = 8;
@@ -38,7 +40,7 @@ async function modeGame(modeId) {
   return {
     kind: "mode",
     modeId,
-    modeName: info?.name || modeId,
+    modeName: info ? modeName(info) : modeId,
     artists: shuffle(chosen, rnd),
     rounds,
     spares: new Map(chosen.map((code) => [code, mode._byArtist.get(code)])),
@@ -69,7 +71,7 @@ async function fixedGame({ kind, modeId, artistCodes, roundIds, seed, day, targe
   return {
     kind,
     modeId,
-    modeName: info?.name || "Partie partagée",
+    modeName: info ? modeName(info) : t("challenge.shared_game"),
     day,
     target,
     artists: shuffle(artistCodes, rnd),
@@ -90,15 +92,19 @@ async function people(setup) {
 }
 
 async function play(setup, { dailyNumber } = {}, alive = () => true) {
-  const dict = await people(setup);
+  const [dict] = await Promise.all([people(setup), loadTitles()]);
   if (!alive()) return;
   if (setup.artists.some((code) => !dict[code])) {
-    root.replaceChildren(emptyState("Cette partie cite un dessinateur inconnu. Essaie un autre mode."));
+    root.replaceChildren(emptyState(t("game.unknown_artist")));
     return;
   }
-  setup.title = "Prêt ?";
+  setup.title = t("game.ready");
   setup.subtitle =
-    setup.kind === "daily" ? `Défi du jour n°${dailyNumber}` : setup.kind === "archive" ? `Défi n°${dailyNumber}, rejoué` : setup.modeName;
+    setup.kind === "daily"
+      ? t("game.subtitle.daily", { n: dailyNumber })
+      : setup.kind === "archive"
+        ? t("game.subtitle.archive", { n: dailyNumber })
+        : setup.modeName;
   const replay = setup.kind === "mode" ? () => startMode(setup.modeId) : setup.kind === "archive" ? () => startDaily(setup.day) : null;
   stopCurrent();
   const game = new Game(root, setup, dict, {
@@ -135,7 +141,7 @@ async function startMode(modeId) {
     await play(setup, {}, alive);
   } catch (error) {
     console.error(error);
-    root.replaceChildren(emptyState("Ce mode n'est pas disponible pour le moment."));
+    root.replaceChildren(emptyState(t("game.mode_unavailable")));
   }
 }
 
@@ -147,28 +153,29 @@ async function startDaily(dateArg) {
   const today = dayKey();
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dateArg || "") ? dateArg : today;
   if (day > today) {
-    root.replaceChildren(emptyState("Ce défi n'est pas encore sorti. Patience, il arrive ce jour-là."));
+    root.replaceChildren(emptyState(t("daily.not_out")));
     return;
   }
   const game = daily?.days?.[day];
   if (!game) {
-    root.replaceChildren(emptyState(day === today ? "Le défi du jour n'est pas encore prêt. Reviens un peu plus tard." : "Ce défi n'existe pas."));
+    root.replaceChildren(emptyState(day === today ? t("daily.not_ready") : t("daily.missing")));
     return;
   }
   const n = daysBetween(daily.launch, day) + 1;
   const meta = await loadMeta();
   if (!alive()) return;
-  const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
+  const dailyMode = meta.modes.find((m) => m.id === game.mode);
+  const modeLabel = dailyMode ? modeName(dailyMode) : "";
   const done = day === today ? dailyResult(today) : null;
   if (done) {
-    dailyDoneView(root, { number: n, modeName, result: done });
+    dailyDoneView(root, { number: n, modeName: modeLabel, result: done });
     return;
   }
   const kind = day === today ? "daily" : "archive";
   const setup = await fixedGame({ kind, modeId: game.mode, artistCodes: game.artists, roundIds: game.rounds, seed: `jour/${day}`, day });
   if (!alive()) return;
   if (!setup) {
-    root.replaceChildren(emptyState("Le défi du jour est introuvable. Reviens dans quelques minutes."));
+    root.replaceChildren(emptyState(t("daily.not_found")));
     return;
   }
   await play(setup, { dailyNumber: n }, alive);
@@ -178,13 +185,13 @@ async function startChallenge(payload) {
   const alive = begin();
   const data = decodeChallenge(payload);
   if (!data) {
-    root.replaceChildren(emptyState("Ce lien de défi est incomplet. Demande à ton ami de le renvoyer."));
+    root.replaceChildren(emptyState(t("challenge.broken")));
     return;
   }
   const setup = await fixedGame({ kind: "challenge", modeId: data.m, artistCodes: data.a, roundIds: data.r, seed: `defi/${payload}`, day: null, target: Number(data.s) });
   if (!alive()) return;
   if (!setup) {
-    root.replaceChildren(emptyState("Les cases de ce défi ne sont plus disponibles. Lance une nouvelle partie."));
+    root.replaceChildren(emptyState(t("challenge.gone")));
     return;
   }
   setup.artists = data.a.slice();
@@ -236,7 +243,7 @@ async function render() {
     const alive = begin();
     const mount = await homeView(root);
     if (alive()) swap(mount);
-    document.title = "Coup de Patte : qui a dessiné cette case ?";
+    document.title = t("app.title");
   } catch (error) {
     console.error(error);
     root.replaceChildren(emptyState());
@@ -250,6 +257,7 @@ document.addEventListener("click", (event) => {
   if (!opener) return;
   if (opener.dataset.open === "stats") openStats();
   if (opener.dataset.open === "about") openAbout();
+  if (opener.dataset.open === "lang") openLanguage();
 });
 
 // Lien d'évitement : aller au contenu sans changer de route.
@@ -258,7 +266,12 @@ document.querySelector(".skip")?.addEventListener("click", (event) => {
   root.focus();
 });
 
-render();
+initI18n()
+  .catch((error) => console.error(error))
+  .then(() => {
+    loadTitles();
+    render();
+  });
 
 // Hors ligne : l'appli se recharge depuis le cache, les images restent sur Inducks.
 if ("serviceWorker" in navigator && location.protocol === "https:") {
@@ -269,5 +282,5 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
 
 window.addEventListener("unhandledrejection", (event) => {
   console.error(event.reason);
-  if (String(event.reason).includes("Failed to fetch")) toast("Connexion perdue");
+  if (String(event.reason).includes("Failed to fetch")) toast(t("common.connection_lost"));
 });

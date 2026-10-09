@@ -1,5 +1,7 @@
 // Chargement des données générées chaque semaine à partir d'Inducks.
 
+import { lang, locale } from "./i18n.js";
+
 const cache = new Map();
 
 async function getJSON(name) {
@@ -63,7 +65,7 @@ export function artistUrl(code) {
 export function countryName(code) {
   if (!code) return "";
   try {
-    const names = new Intl.DisplayNames(["fr"], { type: "region" });
+    const names = new Intl.DisplayNames([locale()], { type: "region" });
     return names.of(code.toUpperCase()) || "";
   } catch {
     return "";
@@ -73,4 +75,30 @@ export function countryName(code) {
 export function lifeSpan(artist) {
   if (!artist || !artist.born) return "";
   return artist.died ? `${artist.born}-${artist.died}` : String(artist.born);
+}
+
+// Titres d'histoires dans la langue choisie (le titre français est déjà dans les données).
+let titles = new Map();
+let titlesLang = "fr";
+
+export async function loadTitles() {
+  const code = lang();
+  if (code === titlesLang) return;
+  titlesLang = code;
+  if (code === "fr") {
+    titles = new Map();
+    return;
+  }
+  try {
+    const data = await getJSON(`titles/${code}.json`);
+    if (titlesLang === code) titles = new Map(Object.entries(data));
+  } catch {
+    titles = new Map();
+  }
+}
+
+export function storyTitle(item) {
+  if (!item) return "";
+  if (titlesLang === "fr") return item.title || item.original || "";
+  return titles.get(item.story) || item.original || item.title || "";
 }

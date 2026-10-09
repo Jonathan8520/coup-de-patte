@@ -120,6 +120,8 @@ svg { display: block; }
   font-weight: 780;
   font-size: 1.15rem;
   font-variation-settings: "INFM" 60, "BNCE" 30;
+  white-space: nowrap;
+  min-width: 0;
 }
 .brand .mark {
   width: 34px;
@@ -131,7 +133,15 @@ svg { display: block; }
   --mark-cut: var(--yellow);
 }
 
-.bar-actions { display: flex; gap: 6px; }
+.bar-actions { display: flex; gap: 2px; flex: none; }
+/* Petits téléphones : le nom reste sur une ligne à côté des trois boutons. */
+@media (max-width: 379px) {
+  .brand { gap: 8px; font-size: 1rem; }
+  .brand .mark { width: 30px; height: 30px; padding: 4px; }
+}
+@media (max-width: 339px) {
+  .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
 
 .icon-btn {
   display: inline-grid;
@@ -976,8 +986,7 @@ dialog::backdrop { background: transparent; }
   transition: opacity .3s;
 }
 .sample.ready img { opacity: 1; }
-.sample.broken::after {
-  content: "Image indisponible";
+.sample-missing {
   position: absolute;
   inset: 0;
   display: grid;
@@ -1024,3 +1033,83 @@ dialog::backdrop { background: transparent; }
 .past-what { display: grid; gap: 2px; min-width: 0; }
 .past-what small { color: var(--ink-2); }
 .past-score { font-weight: 750; font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ---------------------------------------------------------------- pays, kiosques, langue */
+
+/* Grilles des pays et des kiosques : cartes compactes, deux par ligne dès le téléphone. */
+.tier-countries,
+.tier-kiosk { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 420px) { .tier-countries { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 760px) { .tier-countries { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .tier-countries { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 560px) { .more .tier-kiosk { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .more .tier-kiosk { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.panel-compact { gap: 6px; padding: 14px 14px 12px; }
+.tier-grid .panel-compact { padding-top: 14px; }
+.tier-grid .panel-compact:first-child { padding-top: 22px; }
+.panel-compact .mode-name { font-size: 1.2rem; }
+.panel-compact .mode-names { font-size: .82rem; }
+.panel-compact .mode-foot { font-size: .85rem; padding-top: 2px; }
+@media (min-width: 420px) {
+  .tier-countries > .panel-compact:nth-child(2) { padding-top: 22px; }
+}
+@media (min-width: 760px) {
+  .tier-countries > .panel-compact:nth-child(3) { padding-top: 22px; }
+}
+@media (min-width: 1000px) {
+  .tier-countries > .panel-compact:nth-child(4) { padding-top: 22px; }
+}
+.more .tier-grid .panel-compact { padding-top: 14px; }
+
+/* « Afficher les autres » : le bloc s'ouvre en douceur, sa hauteur passe de 0 à son contenu. */
+.more { display: grid; }
+.more-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .5s var(--ease-sheet), margin-top .5s var(--ease-sheet);
+}
+.more.open .more-body { grid-template-rows: 1fr; margin-top: var(--gutter); }
+.more-inner { min-height: 0; overflow: hidden; }
+.more-inner > .tier-grid { padding: 2px; margin: -2px; }
+.more-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.more-toggle:hover { background: var(--paper-2); }
+.more-toggle .chevron { width: 9px; height: 9px; border-width: 0 2px 2px 0; margin: 0 2px; }
+.more.open .more-toggle .chevron { transform: translateY(2px) rotate(-135deg); }
+
+.lang-btn { width: auto; min-width: 44px; padding: 0 8px; gap: 4px; display: inline-flex; border-radius: 999px; }
+.lang-badge { font-size: .8rem; font-weight: 800; letter-spacing: .02em; }
+
+.sheet-body .lang-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lang-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.lang-choice:hover { background: var(--paper-2); }
+.lang-choice[aria-pressed="true"] { background: var(--yellow); color: #000; border-color: #000; }
+.lang-choice svg { width: 20px; height: 20px; }

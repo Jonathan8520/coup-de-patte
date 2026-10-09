@@ -1,7 +1,8 @@
 // Une partie : huit cases, neuf dessinateurs, quinze secondes par case.
 
 import { h, icon, number, reducedMotion, initials, sleep } from "./util.js";
-import { imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan } from "./data.js";
+import { imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan, storyTitle } from "./data.js";
+import { t, tn, quote } from "./i18n.js";
 import { confirmDialog } from "./dialogs.js";
 
 export const ROUND_MS = 15000;
@@ -93,14 +94,14 @@ export class Game {
   mount() {
     if (this.state === "gone") return;
     const s = this.setup;
-    this.scoreEl = h("output", { class: "score", "aria-label": "Score" }, "0");
+    this.scoreEl = h("output", { class: "score", "aria-label": t("game.score") }, "0");
     this.labelEl = h("div", { class: "round-label" }, s.title, h("small", {}, s.subtitle || ""));
-    const quit = h("button", { class: "icon-btn", type: "button", "aria-label": "Quitter la partie", onclick: () => this.quit() }, icon("i-close"));
+    const quit = h("button", { class: "icon-btn", type: "button", "aria-label": t("game.quit"), onclick: () => this.quit() }, icon("i-close"));
     this.dotsEl = h("div", { class: "dots", "aria-hidden": "true" }, s.rounds.map(() => h("i")));
-    this.frameEl = h("div", { class: "frame", role: "img", "aria-label": "Case de bande dessinée à identifier" });
-    this.timerEl = h("div", { class: "timer", role: "progressbar", "aria-label": "Temps restant", "aria-valuemin": "0", "aria-valuemax": "15" }, h("div", { class: "left" }));
-    this.questionEl = h("div", { class: "question" }, h("span", {}, "Qui a dessiné cette case ?"), h("span", { class: "hint" }, ""));
-    this.tilesEl = h("ul", { class: "tiles", "aria-label": "Dessinateurs" });
+    this.frameEl = h("div", { class: "frame", role: "img", "aria-label": t("game.frame_label") });
+    this.timerEl = h("div", { class: "timer", role: "progressbar", "aria-label": t("game.timer"), "aria-valuemin": "0", "aria-valuemax": "15" }, h("div", { class: "left" }));
+    this.questionEl = h("div", { class: "question" }, h("span", {}, t("game.question")), h("span", { class: "hint" }, ""));
+    this.tilesEl = h("ul", { class: "tiles", "aria-label": t("game.artists") });
     this.tileByCode = new Map();
     s.artists.forEach((code, i) => {
       const artist = this.people[code];
@@ -177,7 +178,7 @@ export class Game {
 
   async start() {
     this.state = "loading";
-    this.loader("Chargement des cases");
+    this.loader(t("game.loading"));
     try {
       await this.prepare(0);
     } catch {
@@ -187,13 +188,13 @@ export class Game {
     for (let i = 1; i < this.setup.rounds.length; i++) this.prepare(i);
     if (this.state === "gone") return;
     this.state = "ready";
-    const go = h("button", { class: "btn btn-yellow btn-balloon", type: "button", onclick: () => this.round(0) }, "C'est parti");
+    const go = h("button", { class: "btn btn-yellow btn-balloon", type: "button", onclick: () => this.round(0) }, t("game.go"));
     this.message(
       h(
         "div",
         { class: "loader" },
-        h("strong", { style: { fontSize: "1.25rem" } }, `${this.setup.rounds.length} cases, 15 secondes chacune`),
-        h("span", {}, "Réponds tant que la barre est jaune pour un bonus de rapidité."),
+        h("strong", { style: { fontSize: "1.25rem" } }, t("game.intro", { rounds: this.setup.rounds.length, seconds: ROUND_MS / 1000 })),
+        h("span", {}, t("game.intro_bonus")),
         h("div", { style: { marginTop: "10px" } }, go),
       ),
     );
@@ -206,10 +207,10 @@ export class Game {
       h(
         "div",
         { class: "loader" },
-        h("strong", {}, "Les images ne se chargent pas."),
-        h("span", {}, "Les cases viennent d'Inducks : vérifie ta connexion, puis réessaie."),
+        h("strong", {}, t("game.images_fail")),
+        h("span", {}, t("game.images_fail_hint")),
         h("div", { class: "btn-row", style: { justifyContent: "center", marginTop: "8px" } },
-          h("button", { class: "btn", type: "button", onclick: () => location.reload() }, icon("i-replay"), "Réessayer"),
+          h("button", { class: "btn", type: "button", onclick: () => location.reload() }, icon("i-replay"), t("game.retry")),
         ),
       ),
     );
@@ -223,12 +224,12 @@ export class Game {
     this.closeResult();
     const dots = [...this.dotsEl.children];
     dots.forEach((dot, n) => dot.classList.toggle("current", n === i));
-    this.labelEl.firstChild.textContent = `Case ${i + 1} sur ${this.setup.rounds.length}`;
+    this.labelEl.firstChild.textContent = t("game.round", { i: i + 1, total: this.setup.rounds.length });
     this.questionEl.querySelector(".hint").textContent = "";
     this.setTimer(1, "bonus");
 
     let prepared;
-    const slow = setTimeout(() => this.loader("Chargement de la case"), 250);
+    const slow = setTimeout(() => this.loader(t("game.loading_one")), 250);
     try {
       prepared = await this.prepare(i);
     } catch {
@@ -242,7 +243,7 @@ export class Game {
       if (tile) {
         tile.classList.add("used");
         tile.disabled = true;
-        if (!tile.querySelector(".used-in")) tile.append(h("span", { class: "used-in" }, `n°${i + 1}`));
+        if (!tile.querySelector(".used-in")) tile.append(h("span", { class: "used-in" }, t("game.used", { n: i + 1 })));
       }
       dots[i].classList.remove("current");
       dots[i].classList.add("ko");
@@ -254,7 +255,7 @@ export class Game {
     if (this.state === "gone") return;
     this.message();
     this.current = prepared;
-    this.frameEl.setAttribute("aria-label", "Case de bande dessinée à identifier");
+    this.frameEl.setAttribute("aria-label", t("game.frame_label"));
 
     const old = this.frameEl.querySelector("img");
     const img = prepared.img;
@@ -350,7 +351,7 @@ export class Game {
       tile.disabled = true;
       if (c === answer) {
         tile.classList.add("is-right", "used");
-        if (!tile.querySelector(".used-in")) tile.append(h("span", { class: "used-in" }, `n°${this.index + 1}`));
+        if (!tile.querySelector(".used-in")) tile.append(h("span", { class: "used-in" }, t("game.used", { n: this.index + 1 })));
       } else if (c === code) tile.classList.add("is-wrong");
     }
 
@@ -380,23 +381,23 @@ export class Game {
     void img.offsetWidth;
     img.classList.add("revealing");
     img.style.transform = viewTransform(fw, fh, img.naturalWidth, img.naturalHeight, FULL, "contain");
-    this.frameEl.setAttribute("aria-label", "Planche complète");
+    this.frameEl.setAttribute("aria-label", t("game.frame_full"));
   }
 
   showResult(result) {
     const artist = this.people[result.answer];
     const item = result.item;
     const last = this.index === this.setup.rounds.length - 1;
-    const verdict = result.correct ? "Bien vu" : result.timeout ? "Temps écoulé" : "Raté";
+    const verdict = result.correct ? t("game.right") : result.timeout ? t("game.timeout") : t("game.wrong");
     const points = result.correct
-      ? `+${result.base}${result.bonus ? ` +${result.bonus} rapidité` : ""}`
-      : "0 point";
+      ? `${t("game.base", { n: result.base })}${result.bonus ? ` ${t("game.speed", { n: result.bonus })}` : ""}`
+      : t("game.zero");
     const year = item.year ? ` (${item.year})` : "";
     const details = [countryName(artist.country), lifeSpan(artist)].filter(Boolean).join(", ");
     const next = h(
       "button",
       { class: "btn btn-yellow", type: "button", onclick: () => this.next() },
-      last ? "Voir mon score" : "Case suivante",
+      last ? t("game.see_score") : t("game.next"),
     );
     this.resultEl.className = `result ${result.correct ? "ok" : "ko"}`;
     this.resultEl.replaceChildren(
@@ -408,8 +409,9 @@ export class Game {
         h(
           "p",
           { class: "result-artist" },
-          result.correct ? "C'est bien " : "C'était ",
-          h("a", { href: artistUrl(result.answer), target: "_blank", rel: "noopener" }, h("b", {}, artist.name)),
+          tn(result.correct ? "game.it_is" : "game.it_was", {
+            name: h("a", { href: artistUrl(result.answer), target: "_blank", rel: "noopener" }, h("b", {}, artist.name)),
+          }),
           details ? ` (${details})` : "",
           ".",
         ),
@@ -417,12 +419,14 @@ export class Game {
       h(
         "p",
         { class: "result-story" },
-        `« ${item.title || item.original || "Sans titre"} »${year}, `,
-        h("a", { href: storyUrl(item.story), target: "_blank", rel: "noopener" }, "voir l'histoire sur Inducks"),
+        `${quote(storyTitle(item) || t("common.untitled"))}${year}, `,
+        h("a", { href: storyUrl(item.story), target: "_blank", rel: "noopener" }, t("common.see_story")),
       ),
       next,
     );
-    this.liveEl.textContent = `${verdict}. ${result.correct ? "" : `C'était ${artist.name}.`} ${points}.`;
+    this.liveEl.textContent = result.correct
+      ? t("game.live_right", { verdict, points })
+      : t("game.live_wrong", { verdict, name: artist.name, points });
     requestAnimationFrame(() => {
       this.resultEl.classList.add("open");
       next.focus({ preventScroll: true });
@@ -458,10 +462,10 @@ export class Game {
     const wasPlaying = this.state === "playing";
     if (wasPlaying) this.pause();
     const ok = await confirmDialog({
-      title: "Quitter la partie ?",
-      text: "Ton score ne sera pas enregistré.",
-      confirm: "Quitter",
-      cancel: "Continuer",
+      title: t("game.quit_title"),
+      text: t("game.quit_text"),
+      confirm: t("game.quit_confirm"),
+      cancel: t("game.quit_cancel"),
     });
     if (ok) {
       this.destroy();

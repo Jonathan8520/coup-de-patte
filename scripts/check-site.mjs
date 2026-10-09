@@ -45,6 +45,46 @@ if (!existsSync(join(site, "data/meta.json"))) {
   console.log(`Défis du jour : ${Object.keys(daily.days).length} jours`);
 }
 
+// Traductions : mêmes clés et mêmes variables que le français, et aucune clé utilisée
+// dans le code qui manquerait au dictionnaire source.
+const placeholders = (message) => {
+  const texts = typeof message === "object" ? Object.values(message) : [message];
+  return new Set(texts.flatMap((text) => [...String(text).matchAll(/\{(\w+)\}/g)].map((m) => m[1])));
+};
+const langs = [...readFileSync(join(site, "js/i18n.js"), "utf8").matchAll(/code: "([a-z]+)"/g)].map((m) => m[1]);
+const fr = read("i18n/fr.json");
+for (const code of langs) {
+  const path = `i18n/${code}.json`;
+  if (!existsSync(join(site, path))) {
+    problems.push(`Traduction manquante : ${path}`);
+    continue;
+  }
+  const dict = read(path);
+  for (const key of Object.keys(fr)) {
+    if (!(key in dict)) problems.push(`${code} : clé absente ${key}`);
+    else {
+      const want = placeholders(fr[key]);
+      const got = placeholders(dict[key]);
+      for (const name of got) if (!want.has(name)) problems.push(`${code} : {${name}} inconnu dans ${key}`);
+      for (const name of want) {
+        if (!got.has(name) && name !== "n") problems.push(`${code} : {${name}} oublié dans ${key}`);
+      }
+      if (typeof fr[key] === "object" && typeof dict[key] !== "object") problems.push(`${code} : ${key} doit avoir des pluriels`);
+    }
+  }
+  for (const key of Object.keys(dict)) if (!(key in fr)) problems.push(`${code} : clé en trop ${key}`);
+}
+const sources = ["index.html", ...["app", "views", "game", "dialogs", "util", "data", "modes"].map((n) => `js/${n}.js`)];
+for (const file of sources) {
+  const text = readFileSync(join(site, file), "utf8");
+  const used = [
+    ...text.matchAll(/\bt[n]?\("([a-z_.]+)"/g),
+    ...text.matchAll(/data-i18n(?:-label)?="([a-z_.]+)"/g),
+  ].map((m) => m[1]);
+  for (const key of used) if (!(key in fr)) problems.push(`${file} : clé ${key} absente de fr.json`);
+}
+console.log(`Traductions : ${langs.length} langues, ${Object.keys(fr).length} clés`);
+
 if (problems.length) {
   console.error(problems.slice(0, 40).join("\n"));
   process.exit(1);

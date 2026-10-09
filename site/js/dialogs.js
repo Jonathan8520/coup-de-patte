@@ -5,6 +5,7 @@
 // affichait alors la feuille d'un coup. Ici, le point de départ est donné explicitement.
 
 import { h, icon, reducedMotion } from "./util.js";
+import { t } from "./i18n.js";
 
 // Départ en douceur (vitesse nulle), arrivée freinée : pas d'apparition brusque.
 const EASE_OPEN = "cubic-bezier(.35, 0, .15, 1)";
@@ -35,7 +36,8 @@ function animateIn(dialog) {
   if (reduce) frames = [{ opacity: 0 }, { opacity: 1 }];
   else if (isSheet) frames = [{ transform: hiddenTransform() }, { transform: "translate(0, 0)" }];
   else frames = [{ opacity: 0, transform: "translateY(18px) scale(.96)" }, { opacity: 1, transform: "translateY(0) scale(1)" }];
-  panel.animate(frames, { duration: reduce ? 150 : isSheet ? 480 : 340, easing: EASE_OPEN, fill: "both" });
+  const animation = panel.animate(frames, { duration: reduce ? 150 : isSheet ? 480 : 340, easing: EASE_OPEN, fill: "both" });
+  return animation.finished.catch(() => {});
 }
 
 function animateOut(dialog) {
@@ -57,6 +59,12 @@ function animateOut(dialog) {
 }
 
 function mount(dialog) {
+  // Safari fait défiler la fenêtre pour montrer l'élément qui reçoit le focus. Pendant l'arrivée,
+  // le bouton est encore hors de l'écran : le panneau sautait vers le haut puis redescendait.
+  // Le focus va donc d'abord à la fenêtre elle-même, puis au bon bouton une fois en place.
+  dialog.tabIndex = -1;
+  dialog.setAttribute("autofocus", "");
+  const target = dialog.querySelector("[data-autofocus]") || dialog.querySelector(".sheet-head .icon-btn, .picture-close, button");
   document.body.append(dialog);
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
@@ -64,9 +72,17 @@ function mount(dialog) {
   });
   // Un clic sur le voile, en dehors du contenu, ferme la fenêtre.
   dialog.querySelector(".scrim").addEventListener("click", () => close(dialog));
+  // Aucun défilement interne ne doit déplacer le panneau.
+  dialog.addEventListener("scroll", () => {
+    dialog.scrollTop = 0;
+    dialog.scrollLeft = 0;
+  });
   dialog.showModal();
+  dialog.scrollTop = 0;
   lockScroll(true);
-  animateIn(dialog);
+  animateIn(dialog).then(() => {
+    if (dialog.open && !dialog.dataset.closing) target?.focus({ preventScroll: true });
+  });
   return dialog;
 }
 
@@ -97,7 +113,7 @@ export function openSheet(title, body, { onClose } = {}) {
         "div",
         { class: "sheet-head" },
         heading,
-        h("button", { class: "icon-btn", type: "button", "aria-label": "Fermer", onclick: () => close(dialog) }, icon("i-close")),
+        h("button", { class: "icon-btn", type: "button", "aria-label": t("common.close"), onclick: () => close(dialog) }, icon("i-close")),
       ),
       h("div", { class: "sheet-body" }, body),
     ),
@@ -107,7 +123,7 @@ export function openSheet(title, body, { onClose } = {}) {
 }
 
 // Petite fenêtre de confirmation. Résout avec true si l'action est confirmée.
-export function confirmDialog({ title, text, confirm, cancel = "Annuler" }) {
+export function confirmDialog({ title, text, confirm, cancel = t("common.cancel") }) {
   return new Promise((resolve) => {
     let answer = false;
     const heading = h("h2", { id: `modal-${Date.now()}` }, title);
@@ -124,7 +140,7 @@ export function confirmDialog({ title, text, confirm, cancel = "Annuler" }) {
           "div",
           { class: "btn-row" },
           h("button", { class: "btn", type: "button", onclick: () => { answer = true; close(dialog); } }, confirm),
-          h("button", { class: "btn btn-ghost", type: "button", autofocus: true, onclick: () => close(dialog) }, cancel),
+          h("button", { class: "btn btn-ghost", type: "button", "data-autofocus": true, onclick: () => close(dialog) }, cancel),
         ),
       ),
     );
@@ -138,12 +154,12 @@ export function openPicture({ src, alt, caption }) {
   const img = h("img", { src, alt: alt || "", decoding: "async" });
   const dialog = h(
     "dialog",
-    { class: "modal picture", "aria-label": alt || "Planche" },
+    { class: "modal picture", "aria-label": alt || "" },
     h("div", { class: "scrim", "aria-hidden": "true" }),
     h(
       "div",
       { class: "modal-inner" },
-      h("button", { class: "icon-btn picture-close", type: "button", "aria-label": "Fermer", onclick: () => close(dialog) }, icon("i-close")),
+      h("button", { class: "icon-btn picture-close", type: "button", "aria-label": t("common.close"), onclick: () => close(dialog) }, icon("i-close")),
       h("div", { class: "picture-frame" }, img),
       caption ? h("div", { class: "picture-caption" }, caption) : null,
     ),

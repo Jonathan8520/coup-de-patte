@@ -1,13 +1,19 @@
-// Écrans : accueil, fin de partie, défis, statistiques et aide.
+// Écrans : accueil, fin de partie, défis, statistiques, aide, langue, atelier.
 
-import { h, icon, number, dayKey, formatDay, formatFullDate, daysBetween, untilMidnight, parseDay, plural, shareOrCopy, toast } from "./util.js";
-import { loadMeta, loadArtists, loadDaily, loadMode, imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan } from "./data.js";
+import { h, icon, number, dayKey, formatDay, formatFullDate, daysBetween, untilMidnight, parseDay, capitalize, shareOrCopy, toast } from "./util.js";
+import { loadMeta, loadArtists, loadDaily, loadMode, loadTitles, imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan, storyTitle } from "./data.js";
 import { getState, dailyResult, archiveResult, dailyStreak, medalFor, nextMedal, markOf, resetAll } from "./store.js";
 import { openSheet, confirmDialog, close, openPicture } from "./dialogs.js";
 import { viewTransform, SAFE } from "./game.js";
+import { t, tn, quote, LANGS, lang, setLang } from "./i18n.js";
+import { normalize, modeName, modeBlurb, groupModes } from "./modes.js";
 
-export const SITE_URL = "https://jonathan8520.github.io/coup-de-patte/";
 const MARK_EMOJI = { fast: "🟨", ok: "🟦", ko: "🟪", time: "⬜" };
+// Nombre de cartes visibles avant « Afficher les autres ».
+// Pays visibles d'emblée : deux rangées pleines quand la grille passe à quatre colonnes
+// (même seuil que .tier-countries dans style.css), six sinon.
+const visibleCountries = () => (matchMedia("(min-width: 1000px)").matches ? 8 : 6);
+const VISIBLE_KIOSKS = 1;
 
 export function previousDay(key) {
   const d = parseDay(key);
@@ -47,89 +53,101 @@ export function challengeLink(setup, score) {
   return `${siteBase()}#/defi/${encodeChallenge(payload)}`;
 }
 
-// ------------------------------------------------------------------ accueil
+// ------------------------------------------------------------------ petits morceaux
 
 function namesLine(codes, artists, total) {
   const names = codes.map((code) => artists[code]?.name).filter(Boolean);
   const rest = total - names.length;
-  return rest > 0 ? `${names.join(", ")} et ${rest} autres` : names.join(", ");
+  return rest > 0 ? t("common.and_more", { names: names.join(", "), n: rest }) : names.join(", ");
 }
 
 function marksRow(marks) {
   return h("div", { class: "marks", "aria-hidden": "true" }, marks.map((mark) => h("i", { class: mark === "time" ? "ko" : mark })));
 }
 
-export function shareText({ number: n, modeName, score, marks }) {
-  const head = n ? `Coup de Patte, défi du jour n°${n}` : "Coup de Patte";
-  return `${head}\n${modeName} : ${number.format(score)} points\n${marks.map((m) => MARK_EMOJI[m] || "⬜").join("")}`;
+export function shareText({ number: n, modeName: mode, score, marks }) {
+  const head = n ? t("share.daily_head", { n }) : "Coup de Patte";
+  return `${head}\n${t("share.line", { mode, points: t("common.points", { n: score }) })}\n${marks.map((m) => MARK_EMOJI[m] || "⬜").join("")}`;
 }
+
+function shareDaily(n, mode, result) {
+  return shareOrCopy({ title: "Coup de Patte", text: shareText({ number: n, modeName: mode, score: result.score, marks: result.marks }), url: `${siteBase()}#/jour` });
+}
+
+function titleOf(item) {
+  return quote(storyTitle(item) || t("common.untitled"));
+}
+
+// Bloc repliable qui s'ouvre en douceur (même mécanique que les fiches de l'atelier).
+function collapsible(children, labelMore) {
+  const inner = h("div", { class: "more-inner" }, children);
+  const box = h("div", { class: "more-body" }, inner);
+  const button = h("button", { class: "more-toggle", type: "button", "aria-expanded": "false" }, h("span", {}, labelMore), h("span", { class: "chevron", "aria-hidden": "true" }));
+  const wrap = h("div", { class: "more" }, box, button);
+  button.addEventListener("click", () => {
+    const open = !wrap.classList.contains("open");
+    wrap.classList.toggle("open", open);
+    button.setAttribute("aria-expanded", String(open));
+    button.firstChild.textContent = open ? t("home.less") : labelMore;
+  });
+  return wrap;
+}
+
+// ------------------------------------------------------------------ accueil
 
 function dailyPanel(meta, daily) {
   const today = dayKey();
   const game = daily?.days?.[today];
   const panel = h("section", { class: "panel panel-daily", "aria-labelledby": "daily-title" });
   if (!game) {
-    panel.append(h("h2", { class: "daily-title", id: "daily-title" }, "Défi du jour"), h("p", {}, "Le prochain défi se prépare. Reviens un peu plus tard."));
+    panel.append(h("h2", { class: "daily-title", id: "daily-title" }, t("daily.title")), h("p", {}, t("daily.preparing")));
     return panel;
   }
   const n = daysBetween(daily.launch, today) + 1;
-  const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
+  const mode = modeName(meta.modes.find((m) => m.id === game.mode) || { id: game.mode, name: "" });
   const done = dailyResult(today);
   panel.append(
-    h("div", { class: "daily-head" }, h("h2", { class: "daily-title", id: "daily-title" }, `Défi du jour n°${n}`)),
-    h("p", { class: "daily-date" }, `${capitalize(formatDay(today))}. Thème : ${modeName}.`),
+    h("div", { class: "daily-head" }, h("h2", { class: "daily-title", id: "daily-title" }, t("daily.title_n", { n }))),
+    h("p", { class: "daily-date" }, t("daily.date_theme", { date: capitalize(formatDay(today)), mode })),
   );
   if (done) {
     const streak = dailyStreak(today, previousDay);
-    const next = h("span", { class: "daily-next" }, `Prochain défi dans ${untilMidnight()}`);
+    const next = h("span", { class: "daily-next" }, t("daily.next", { time: untilMidnight() }));
     const timer = setInterval(() => {
       if (!next.isConnected) return clearInterval(timer);
-      next.textContent = `Prochain défi dans ${untilMidnight()}`;
+      next.textContent = t("daily.next", { time: untilMidnight() });
     }, 30000);
     panel.append(
-      h("div", { class: "daily-done" }, h("span", { class: "daily-score" }, `${number.format(done.score)} pts`), marksRow(done.marks)),
-      h("p", {}, done.partial ? "Partie interrompue. " : "", streak > 1 ? `${streak} jours d'affilée. ` : "", next),
-      h(
-        "div",
-        { class: "btn-row" },
-        h(
-          "button",
-          {
-            class: "btn",
-            type: "button",
-            onclick: () => shareOrCopy({ title: "Coup de Patte", text: shareText({ number: n, modeName, score: done.score, marks: done.marks }), url: `${siteBase()}#/jour` }),
-          },
-          icon("i-share"),
-          "Partager",
-        ),
-      ),
+      h("div", { class: "daily-done" }, h("span", { class: "daily-score" }, `${number.format(done.score)} ${t("common.pts")}`), marksRow(done.marks)),
+      h("p", {}, done.partial ? `${t("daily.interrupted")} ` : "", streak > 1 ? `${t("daily.streak", { n: streak })} ` : "", next),
+      h("div", { class: "btn-row" }, h("button", { class: "btn", type: "button", onclick: () => shareDaily(n, mode, done) }, icon("i-share"), t("daily.share"))),
     );
   } else {
     panel.append(
-      h("p", { class: "daily-mode" }, "Les mêmes huit cases pour tout le monde. Une seule tentative."),
-      h("div", { class: "btn-row" }, h("a", { class: "btn btn-balloon", href: "#/jour" }, "Jouer le défi")),
+      h("p", { class: "daily-mode" }, t("daily.rules")),
+      h("div", { class: "btn-row" }, h("a", { class: "btn btn-balloon", href: "#/jour" }, t("daily.play"))),
     );
   }
   return panel;
 }
 
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function modePanel(mode, artists) {
+function recordLine(mode) {
   const stats = getState().modes[mode.id];
   const medal = stats ? medalFor(stats.correct) : null;
-  const record = stats?.best
-    ? h("span", {}, medal ? h("i", { class: `medal-dot medal-${medal.id}`, title: medal.label.charAt(0).toUpperCase() + medal.label.slice(1) }) : null, `Record : ${number.format(stats.best)}`)
-    : h("span", { class: "muted" }, `${plural(mode.artists, "dessinateur", "dessinateurs")}`);
+  return stats?.best
+    ? h("span", {}, medal ? h("i", { class: `medal-dot medal-${medal.id}`, title: t(`medal.${medal.id}`) }) : null, t("home.record", { n: stats.best }))
+    : h("span", { class: "muted" }, t("common.artists", { n: mode.artists }));
+}
+
+function modePanel(mode, artists, meta, { compact = false } = {}) {
+  const blurb = modeBlurb(mode, meta);
   return h(
     "a",
-    { class: "panel mode-link", href: `#/jouer/${mode.id}` },
-    h("h3", { class: "mode-name" }, mode.name),
-    h("p", { class: "mode-blurb" }, mode.blurb),
-    h("p", { class: "mode-names" }, namesLine(mode.faces, artists, mode.artists)),
-    h("div", { class: "mode-foot" }, record, h("span", { class: "mode-play" }, "Jouer")),
+    { class: `panel mode-link${compact ? " panel-compact" : ""}`, href: `#/jouer/${mode.id}` },
+    h("h3", { class: "mode-name" }, modeName(mode)),
+    blurb ? h("p", { class: "mode-blurb" }, blurb) : null,
+    h("p", { class: "mode-names" }, namesLine(mode.faces.slice(0, compact ? 3 : 4), artists, mode.artists)),
+    h("div", { class: "mode-foot" }, recordLine(mode), h("span", { class: "mode-play" }, t("common.play"))),
   );
 }
 
@@ -143,25 +161,20 @@ function linkPanel({ href, title, blurb, foot, action }) {
   );
 }
 
-// Regroupement des modes sur la page d'accueil. Un mode inconnu rejoint le dernier groupe.
-const GROUPS = [
-  { title: "Pour commencer", ids: ["debutant", "tous"], extra: "atelier" },
-  { title: "Par école", ids: ["us", "it", "francais", "egmont"] },
-  { title: "Autrement", ids: ["fr"], extra: "archives" },
-];
-
 export function pastDays(daily, today = dayKey()) {
   if (!daily?.days) return [];
   return Object.keys(daily.days).filter((day) => day < today && day >= daily.launch).sort().reverse();
 }
 
-function tier(title, panels) {
-  const count = panels.filter(Boolean).length;
+function tier(title, panels, { columns, more, moreLabel } = {}) {
+  const shown = panels.filter(Boolean);
+  const grid = (items) => h("div", { class: `tier-grid tier-${columns || Math.min(items.length, 4)}` }, items);
   return h(
     "section",
     { class: "tier", "aria-label": title },
     h("h2", { class: "caption" }, title),
-    h("div", { class: `tier-grid tier-${Math.min(count, 4)}` }, panels),
+    grid(shown),
+    more?.length ? collapsible(grid(more), moreLabel) : null,
   );
 }
 
@@ -174,34 +187,28 @@ export async function homeView(root) {
     return () => root.replaceChildren(emptyState());
   }
   return () => {
-    const byId = new Map(meta.modes.map((m) => [m.id, m]));
-    const placed = new Set(GROUPS.flatMap((g) => g.ids));
-    const leftovers = meta.modes.filter((m) => !placed.has(m.id));
+    const groups = groupModes(meta);
     const past = pastDays(daily);
-    const totalArtists = Object.keys(artists).length;
-    const extras = {
-      atelier: linkPanel({
-        href: "#/atelier",
-        title: "L'atelier",
-        blurb: "Feuillette les planches de chaque dessinateur pour apprendre à reconnaître son trait.",
-        foot: `${number.format(totalArtists)} dessinateurs`,
-        action: "Ouvrir",
-      }),
-      archives: linkPanel({
-        href: "#/defis",
-        title: "Défis précédents",
-        blurb: "Rejoue les défis des jours passés, sans toucher à ta série.",
-        foot: past.length ? plural(past.length, "défi", "défis") : "Le premier arrive demain",
-        action: "Voir",
-      }),
-    };
-    const tiers = GROUPS.map((group, index) => {
-      const modes = group.ids.map((id) => byId.get(id)).filter(Boolean);
-      if (index === GROUPS.length - 1) modes.push(...leftovers);
-      const panels = modes.map((mode) => modePanel(mode, artists));
-      if (group.extra) panels.push(extras[group.extra]);
-      return panels.length ? tier(group.title, panels) : null;
+    const atelier = linkPanel({
+      href: "#/atelier",
+      title: t("home.atelier.title"),
+      blurb: t("home.atelier.blurb"),
+      foot: t("common.artists", { n: Object.keys(artists).length }),
+      action: t("common.open"),
     });
+    const archives = linkPanel({
+      href: "#/defis",
+      title: t("home.archives.title"),
+      blurb: t("home.archives.blurb"),
+      foot: past.length ? t("home.archives.count", { n: past.length }) : t("home.archives.first"),
+      action: t("common.see"),
+    });
+    const countries = groups.country.map((mode) => modePanel(mode, artists, meta, { compact: true }));
+    const kiosks = groups.kiosk.map((mode, i) => modePanel(mode, artists, meta, { compact: i >= VISIBLE_KIOSKS }));
+    const shownCountries = visibleCountries();
+    const hiddenCountries = countries.slice(shownCountries);
+    const hiddenKiosks = kiosks.slice(VISIBLE_KIOSKS);
+
     root.replaceChildren(
       h(
         "div",
@@ -216,47 +223,51 @@ export async function homeView(root) {
             h(
               "div",
               {},
-              h("p", { class: "lede" }, "Une case de BD Disney s'affiche. Tu as quinze secondes pour trouver qui l'a dessinée."),
-              h(
-                "ul",
-                { class: "how" },
-                h("li", {}, icon("i-clock"), "8 cases par partie"),
-                h("li", {}, icon("i-pencil"), "9 dessinateurs proposés"),
-              ),
+              h("p", { class: "lede" }, t("home.lede")),
+              h("ul", { class: "how" }, h("li", {}, icon("i-clock"), t("home.how_rounds")), h("li", {}, icon("i-pencil"), t("home.how_artists"))),
             ),
           ),
           dailyPanel(meta, daily),
         ),
-        tiers,
+        tier(t("home.group.start"), [...groups.selection.map((mode) => modePanel(mode, artists, meta)), atelier], { columns: 3 }),
+        countries.length
+          ? tier(t("home.group.countries"), countries.slice(0, shownCountries), {
+              columns: "countries",
+              more: hiddenCountries,
+              moreLabel: t("home.more_countries", { n: hiddenCountries.length }),
+            })
+          : null,
+        kiosks.length
+          ? tier(t("home.group.kiosks"), kiosks.slice(0, VISIBLE_KIOSKS), {
+              columns: "kiosk",
+              more: hiddenKiosks,
+              moreLabel: t("home.more_kiosks", { n: hiddenKiosks.length }),
+            })
+          : null,
+        tier(t("home.group.other"), [...groups.production.map((mode) => modePanel(mode, artists, meta)), archives], { columns: 2 }),
         h(
           "footer",
           { class: "home-foot" },
-          h("p", {}, `Données Inducks du ${formatFullDate(meta.generated)}, mises à jour chaque semaine.`),
-          h("p", {}, "Inspiré de Duckguessr, le jeu de l'équipe DucksManager. Personnages et histoires © Disney."),
+          h("p", {}, t("home.data_date", { date: formatFullDate(meta.generated) })),
+          h("p", {}, t("home.credit")),
         ),
       ),
     );
   };
 }
 
-export function emptyState(text = "Les cases sont en cours de préparation. Reviens dans quelques minutes.") {
-  return h(
-    "div",
-    { class: "empty" },
-    icon("patte", "empty-mark"),
-    h("p", {}, text),
-    h("a", { class: "btn", href: "#/" }, "Retour à l'accueil"),
-  );
+export function emptyState(text = t("home.empty")) {
+  return h("div", { class: "empty" }, icon("patte", "empty-mark"), h("p", {}, text), h("a", { class: "btn", href: "#/" }, t("common.back_home")));
 }
 
 // ------------------------------------------------------------------ fin de partie
 
 function verdictFor(correct, total) {
-  if (correct === total) return "Sans faute. Tu as l'œil d'un éditeur.";
-  if (correct >= total - 2) return "Du métier : tu reconnais les styles au premier coup d'œil.";
-  if (correct >= total / 2) return "Pas mal du tout. Les traits commencent à te parler.";
-  if (correct >= 2) return "Les styles se ressemblent au début, ça viendra vite.";
-  return "Dur. Le mode Débutant est là pour se faire l'œil.";
+  if (correct === total) return t("end.verdict.perfect");
+  if (correct >= total - 2) return t("end.verdict.great");
+  if (correct >= total / 2) return t("end.verdict.good");
+  if (correct >= 2) return t("end.verdict.ok");
+  return t("end.verdict.hard");
 }
 
 function thumb(item) {
@@ -283,100 +294,85 @@ function countUp(el, target) {
   const start = performance.now();
   const duration = 1100;
   const step = (now) => {
-    const t = Math.min(1, (now - start) / duration);
-    const eased = 1 - Math.pow(1 - t, 3);
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
     el.textContent = number.format(Math.round(target * eased));
-    if (t < 1) requestAnimationFrame(step);
+    if (p < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
 
-export function endView(root, { setup, score, results, people, modeName, dailyNumber, onReplay }) {
+export function endView(root, { setup, score, results, people, modeName: mode, dailyNumber, onReplay }) {
   const correct = results.filter((r) => r.correct).length;
   const total = results.length;
   const marks = results.map(markOf);
   const scoreEl = h("span", {}, "0");
+  const kicker =
+    setup.kind === "daily"
+      ? t("end.kicker.daily", { n: dailyNumber, mode })
+      : setup.kind === "archive"
+        ? t("end.kicker.archive", { n: dailyNumber, date: formatDay(setup.day), mode })
+        : setup.kind === "challenge"
+          ? t("end.kicker.challenge", { mode })
+          : mode;
   const head = h(
     "header",
     { class: "end-head" },
-    h(
-      "p",
-      { class: "end-kicker" },
-      setup.kind === "daily"
-        ? `Défi du jour n°${dailyNumber} (${modeName})`
-        : setup.kind === "archive"
-          ? `Défi n°${dailyNumber} du ${formatDay(setup.day)} (${modeName}), rejoué`
-          : setup.kind === "challenge"
-            ? `Défi entre amis (${modeName})`
-            : modeName,
-    ),
-    h("p", { class: "end-score", "aria-label": `${score} points` }, scoreEl, h("small", {}, " pts")),
-    h("p", { class: "end-verdict" }, `${correct} sur ${total}. ${verdictFor(correct, total)}`),
+    h("p", { class: "end-kicker" }, kicker),
+    h("p", { class: "end-score", "aria-label": t("common.points", { n: score }) }, scoreEl, h("small", {}, ` ${t("common.pts")}`)),
+    h("p", { class: "end-verdict" }, `${t("end.count", { correct, total })} ${verdictFor(correct, total)}`),
   );
 
   let challengeNote = null;
   if (setup.kind === "challenge" && Number.isFinite(setup.target)) {
     const diff = score - setup.target;
+    const target = t("common.points", { n: setup.target });
     challengeNote = h(
       "p",
       { class: "end-challenge" },
       diff > 0
-        ? `Défi relevé : ${plural(diff, "point", "points")} de plus que ton ami (${number.format(setup.target)}).`
+        ? t("end.challenge.won", { diff: t("common.points", { n: diff }), target })
         : diff === 0
-          ? `Égalité parfaite avec ton ami : ${number.format(setup.target)} points chacun.`
-          : `Ton ami garde l'avantage avec ${plural(setup.target, "point", "points")}, ${plural(-diff, "point", "points")} de plus que toi.`,
+          ? t("end.challenge.tie", { target })
+          : t("end.challenge.lost", { target, diff: t("common.points", { n: -diff }) }),
     );
   }
 
   const actions = h("div", { class: "btn-row" });
   if (setup.kind === "daily" || setup.kind === "archive") {
+    actions.append(h("button", { class: "btn btn-yellow", type: "button", onclick: () => shareDaily(dailyNumber, mode, { score, marks }) }, icon("i-share"), t("end.share")));
+  }
+  // Pas de lien de défi pour le défi du jour : il gâcherait la surprise des autres.
+  if (setup.kind !== "daily") {
     actions.append(
       h(
         "button",
         {
           class: "btn btn-yellow",
           type: "button",
-          onclick: () => shareOrCopy({ title: "Coup de Patte", text: shareText({ number: dailyNumber, modeName, score, marks }), url: `${siteBase()}#/jour` }),
+          onclick: () => shareOrCopy({ title: "Coup de Patte", text: t("share.challenge", { points: t("common.points", { n: score }), mode }), url: challengeLink(setup, score) }),
         },
-        icon("i-share"),
-        "Partager mon résultat",
+        icon("i-link"),
+        t("end.challenge_friend"),
       ),
     );
   }
-  // Pas de lien de défi pour le défi du jour : il gâcherait la surprise des autres.
-  if (setup.kind !== "daily") actions.append(
-    h(
-      "button",
-      {
-        class: "btn btn-yellow",
-        type: "button",
-        onclick: () =>
-          shareOrCopy({
-            title: "Coup de Patte",
-            text: `J'ai fait ${number.format(score)} points à Coup de Patte (${modeName}). Mêmes cases, à toi :`,
-            url: challengeLink(setup, score),
-          }),
-      },
-      icon("i-link"),
-      "Défier un ami",
-    ),
-  );
-  if (onReplay) actions.append(h("button", { class: "btn", type: "button", onclick: onReplay }, icon("i-replay"), "Rejouer"));
-  actions.append(h("a", { class: "btn btn-ghost", href: "#/" }, "Accueil"));
+  if (onReplay) actions.append(h("button", { class: "btn", type: "button", onclick: onReplay }, icon("i-replay"), t("end.replay")));
+  actions.append(h("a", { class: "btn btn-ghost", href: "#/" }, t("common.home")));
 
   const recap = h(
     "ol",
-    { class: "recap", "aria-label": "Détail des cases" },
+    { class: "recap", "aria-label": t("end.recap") },
     results.map((r, i) => {
       const artist = people[r.answer];
       const guessed = r.guess && r.guess !== r.answer ? people[r.guess]?.name : null;
       const line = r.skipped
-        ? "Case indisponible, ignorée"
+        ? t("end.skipped")
         : r.correct
-          ? `« ${r.item.title || r.item.original || "Sans titre"} »${r.item.year ? `, ${r.item.year}` : ""}`
+          ? `${titleOf(r.item)}${r.item.year ? `, ${r.item.year}` : ""}`
           : r.timeout
-            ? "Temps écoulé"
-            : `Tu as répondu ${guessed}`;
+            ? t("end.timeout")
+            : t("end.answered", { name: guessed });
       return h(
         "li",
         { class: r.correct ? "ok" : "ko", style: { "--i": i } },
@@ -393,8 +389,7 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
 }
 
 // Défi du jour déjà joué : on rappelle le résultat.
-export function dailyDoneView(root, { number: n, modeName, result }) {
-  const next = h("p", { class: "daily-next" }, `Prochain défi dans ${untilMidnight()}.`);
+export function dailyDoneView(root, { number: n, modeName: mode, result }) {
   root.replaceChildren(
     h(
       "div",
@@ -402,28 +397,23 @@ export function dailyDoneView(root, { number: n, modeName, result }) {
       h(
         "header",
         { class: "end-head" },
-        h("p", { class: "end-kicker" }, `Défi du jour n°${n} (${modeName})`),
-        h("p", { class: "end-score" }, number.format(result.score), h("small", {}, " pts")),
+        h("p", { class: "end-kicker" }, t("end.kicker.daily", { n, mode })),
+        h("p", { class: "end-score" }, number.format(result.score), h("small", {}, ` ${t("common.pts")}`)),
         marksRow(result.marks),
-        h("p", { class: "end-verdict" }, result.partial ? "Partie interrompue : le défi du jour ne se joue qu'une fois." : "Tu as déjà joué le défi d'aujourd'hui."),
-        next,
+        h("p", { class: "end-verdict" }, result.partial ? t("daily.interrupted_long") : t("daily.already")),
+        h("p", { class: "daily-next" }, `${t("daily.next", { time: untilMidnight() })}.`),
       ),
       h(
         "div",
         { class: "btn-row" },
-        h(
-          "button",
-          { class: "btn btn-yellow", type: "button", onclick: () => shareOrCopy({ title: "Coup de Patte", text: shareText({ number: n, modeName, score: result.score, marks: result.marks }), url: `${siteBase()}#/jour` }) },
-          icon("i-share"),
-          "Partager mon résultat",
-        ),
-        h("a", { class: "btn btn-ghost", href: "#/" }, "Accueil"),
+        h("button", { class: "btn btn-yellow", type: "button", onclick: () => shareDaily(n, mode, result) }, icon("i-share"), t("end.share")),
+        h("a", { class: "btn btn-ghost", href: "#/" }, t("common.home")),
       ),
     ),
   );
 }
 
-export function challengeIntro(root, { target, modeName, rounds, onStart }) {
+export function challengeIntro(root, { target, modeName: mode, rounds, onStart }) {
   root.replaceChildren(
     h(
       "div",
@@ -431,15 +421,15 @@ export function challengeIntro(root, { target, modeName, rounds, onStart }) {
       h(
         "header",
         { class: "end-head" },
-        h("p", { class: "end-kicker" }, `Défi entre amis (${modeName})`),
-        h("p", { class: "end-score" }, Number.isFinite(target) ? number.format(target) : "?", h("small", {}, " pts")),
-        h("p", { class: "end-verdict" }, `C'est le score à battre, sur les mêmes ${rounds} cases et dans le même ordre.`),
+        h("p", { class: "end-kicker" }, t("challenge.kicker", { mode })),
+        h("p", { class: "end-score" }, Number.isFinite(target) ? number.format(target) : "?", h("small", {}, ` ${t("common.pts")}`)),
+        h("p", { class: "end-verdict" }, t("challenge.text", { n: rounds })),
       ),
       h(
         "div",
         { class: "btn-row" },
-        h("button", { class: "btn btn-yellow btn-balloon", type: "button", onclick: onStart }, "Relever le défi"),
-        h("a", { class: "btn btn-ghost", href: "#/" }, "Plus tard"),
+        h("button", { class: "btn btn-yellow btn-balloon", type: "button", onclick: onStart }, t("challenge.start")),
+        h("a", { class: "btn btn-ghost", href: "#/" }, t("challenge.later")),
       ),
     ),
   );
@@ -450,7 +440,7 @@ export function challengeIntro(root, { target, modeName, rounds, onStart }) {
 export async function openStats() {
   const [meta, artists] = await Promise.all([loadMeta(), loadArtists()]).catch(() => [null, {}]);
   const s = getState();
-  const modes = meta?.modes || [];
+  const modes = (meta?.modes || []).map(normalize);
   const totals = Object.values(s.modes).reduce(
     (acc, m) => ({ played: acc.played + m.played, correct: acc.correct + m.correct, rounds: acc.rounds + m.rounds, best: Math.max(acc.best, m.best) }),
     { played: 0, correct: 0, rounds: 0, best: 0 },
@@ -458,10 +448,7 @@ export async function openStats() {
   const streak = dailyStreak(dayKey(), previousDay);
 
   if (!totals.played) {
-    openSheet("Mes statistiques", [
-      h("p", {}, "Rien pour l'instant. Joue une partie et tes résultats s'afficheront ici."),
-      h("p", { class: "muted" }, "Elles restent dans ce navigateur : rien n'est envoyé nulle part."),
-    ]);
+    openSheet(t("stats.title"), [h("p", {}, t("stats.empty")), h("p", { class: "muted" }, t("stats.private"))]);
     return;
   }
 
@@ -470,9 +457,9 @@ export async function openStats() {
     h(
       "div",
       { class: "stat-grid" },
-      h("div", { class: "stat" }, h("b", {}, number.format(totals.played)), h("span", {}, totals.played > 1 ? "parties" : "partie")),
-      h("div", { class: "stat" }, h("b", {}, `${Math.round((100 * totals.correct) / Math.max(1, totals.rounds))} %`), h("span", {}, "de cases trouvées")),
-      h("div", { class: "stat" }, h("b", {}, number.format(streak)), h("span", {}, streak > 1 ? "jours de défi d'affilée" : "jour de défi")),
+      h("div", { class: "stat" }, h("b", {}, number.format(totals.played)), h("span", {}, t("stats.games", { n: totals.played }))),
+      h("div", { class: "stat" }, h("b", {}, t("stats.percent", { n: Math.round((100 * totals.correct) / Math.max(1, totals.rounds)) })), h("span", {}, t("stats.found_rate"))),
+      h("div", { class: "stat" }, h("b", {}, number.format(streak)), h("span", {}, t("stats.streak", { n: streak }))),
     ),
   );
 
@@ -486,17 +473,17 @@ export async function openStats() {
       return h(
         "div",
         { class: "mode-stat" },
-        h("div", { class: "mode-stat-head" }, h("span", {}, medal ? h("i", { class: `medal-dot medal-${medal.id}` }) : null, m.name), h("span", {}, `Record ${number.format(st.best)}`)),
+        h("div", { class: "mode-stat-head" }, h("span", {}, medal ? h("i", { class: `medal-dot medal-${medal.id}` }) : null, modeName(m)), h("span", {}, t("stats.record", { n: st.best }))),
         h("div", { class: "meter", "aria-hidden": "true" }, meter),
         h(
           "small",
           {},
-          `${plural(st.correct, "case trouvée", "cases trouvées")} sur ${number.format(st.rounds)}. `,
-          next ? `${next.label.charAt(0).toUpperCase() + next.label.slice(1)} à ${next.need} cases trouvées.` : "Toutes les médailles sont à toi.",
+          `${t("stats.found", { n: st.correct, total: st.rounds })} `,
+          next ? t("stats.next_medal", { medal: t(`medal.${next.id}`), n: next.need }) : t("stats.all_medals"),
         ),
       );
     });
-  body.push(h("section", {}, h("h3", {}, "Par mode"), h("div", { class: "mode-stats" }, perMode)));
+  body.push(h("section", {}, h("h3", {}, t("stats.by_mode")), h("div", { class: "mode-stats" }, perMode)));
 
   const eye = Object.entries(s.artists)
     .filter(([, a]) => a.seen >= 3)
@@ -504,14 +491,14 @@ export async function openStats() {
   if (eye.length >= 3) {
     const best = [...eye].sort((a, b) => b.rate - a.rate || b.seen - a.seen).slice(0, 5);
     const worst = [...eye].sort((a, b) => a.rate - b.rate || b.seen - a.seen).filter((e) => e.rate < 1).slice(0, 5);
-    const list = (items) => h("ul", { class: "eye-list" }, items.map((e) => h("li", {}, h("span", {}, e.name), h("b", {}, `${Math.round(e.rate * 100)} %`))));
-    body.push(h("section", {}, h("h3", {}, "Ceux que tu reconnais le mieux"), list(best)));
-    if (worst.length) body.push(h("section", {}, h("h3", {}, "Ceux qui te piègent"), list(worst)));
+    const list = (items) => h("ul", { class: "eye-list" }, items.map((e) => h("li", {}, h("span", {}, e.name), h("b", {}, t("stats.percent", { n: Math.round(e.rate * 100) })))));
+    body.push(h("section", {}, h("h3", {}, t("stats.best")), list(best)));
+    if (worst.length) body.push(h("section", {}, h("h3", {}, t("stats.worst")), list(worst)));
   } else {
-    body.push(h("p", { class: "muted" }, "Après quelques parties, tu verras ici les dessinateurs que tu reconnais le mieux."));
+    body.push(h("p", { class: "muted" }, t("stats.eye_hint")));
   }
 
-  const sheet = openSheet("Mes statistiques", [
+  const sheet = openSheet(t("stats.title"), [
     ...body,
     h(
       "button",
@@ -519,97 +506,102 @@ export async function openStats() {
         class: "btn btn-ghost",
         type: "button",
         onclick: async () => {
-          const ok = await confirmDialog({ title: "Tout effacer ?", text: "Scores, médailles et défis du jour seront supprimés de ce navigateur.", confirm: "Effacer" });
+          const ok = await confirmDialog({ title: t("stats.reset_title"), text: t("stats.reset_text"), confirm: t("stats.reset_confirm"), cancel: t("common.cancel") });
           if (ok) {
             resetAll();
             close(sheet);
-            toast("Statistiques effacées");
+            toast(t("stats.reset_done"));
             if (location.hash === "#/" || !location.hash) window.dispatchEvent(new HashChangeEvent("hashchange"));
             else location.hash = "#/";
           }
         },
       },
-      "Effacer mes statistiques",
+      t("stats.reset"),
     ),
   ]);
 }
 
+const link = (href, text) => h("a", { href, target: "_blank", rel: "noopener" }, text);
+const item = (label, text) => h("li", {}, tn("about.item", { label: h("b", {}, label), text }));
+
 export async function openAbout() {
   const meta = await loadMeta().catch(() => null);
-  openSheet("Comment jouer", [
+  const groups = meta ? groupModes(meta) : { selection: [], production: [], country: [], kiosk: [] };
+  openSheet(t("about.title"), [
+    h("section", {}, h("h3", {}, t("about.rules")), h("p", {}, t("about.rules_1")), h("p", {}, t("about.rules_2"))),
+    h("section", {}, h("h3", {}, t("about.points")), h("ul", {}, h("li", {}, t("about.points_1")), h("li", {}, t("about.points_2")), h("li", {}, t("about.points_3")))),
     h(
       "section",
       {},
-      h("h3", {}, "Le principe"),
-      h("p", {}, "Chaque partie compte huit cases et propose neuf dessinateurs. Chaque dessinateur n'est la bonne réponse qu'une seule fois : l'un des neuf noms est donc un leurre."),
-      h("p", {}, "La case s'ouvre sur un détail puis s'élargit. La bande du haut de la planche, où se trouvent le titre et souvent les crédits, reste cachée jusqu'à ta réponse."),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Les points"),
+      h("h3", {}, t("about.modes")),
       h(
         "ul",
         {},
-        h("li", {}, "100 points par bonne réponse."),
-        h("li", {}, "Jusqu'à 100 points de bonus si tu réponds pendant que la barre est jaune, soit les 7,5 premières secondes."),
-        h("li", {}, "Au clavier, les touches 1 à 9 choisissent un dessinateur et Entrée passe à la case suivante."),
+        [...groups.selection, ...groups.production].map((m) => item(modeName(m), modeBlurb(m, meta))),
+        item(t("home.group.countries"), t("about.modes_country")),
+        item(t("home.group.kiosks"), t("about.modes_kiosk")),
+        item(t("daily.title"), t("about.daily")),
+        item(t("home.archives.title"), t("about.archives")),
+        item(t("home.atelier.title"), t("about.atelier")),
       ),
     ),
     h(
       "section",
       {},
-      h("h3", {}, "Les modes"),
-      h(
-        "ul",
-        {},
-        (meta?.modes || []).map((m) => h("li", {}, h("b", {}, m.name), ` : ${m.blurb}`)),
-        h("li", {}, h("b", {}, "Défi du jour"), " : les mêmes cases pour tout le monde, une seule tentative, à partager ensuite."),
-        h("li", {}, h("b", {}, "Défis précédents"), " : les défis des jours passés, à rejouer autant que tu veux."),
-        h("li", {}, h("b", {}, "L'atelier"), " : quelques planches de chaque dessinateur, pour s'entraîner l'œil avant de jouer."),
-      ),
+      h("h3", {}, t("about.source")),
+      h("p", {}, tn("about.source_text", { inducks: link("https://inducks.org", "Inducks") })),
+      meta ? h("p", { class: "muted" }, t("about.updated", { date: formatFullDate(meta.generated) })) : null,
     ),
     h(
       "section",
       {},
-      h("h3", {}, "D'où viennent les cases"),
-      h(
-        "p",
-        {},
-        "Des scans de premières pages répertoriés par ",
-        h("a", { href: "https://inducks.org", target: "_blank", rel: "noopener" }, "Inducks"),
-        ", la base collaborative des BD Disney. Seules les histoires attribuées à un seul dessinateur sont retenues. Les images sont affichées depuis Inducks et ne sont pas copiées ici.",
-      ),
-      meta ? h("p", { class: "muted" }, `Dernière mise à jour des données : ${formatFullDate(meta.generated)}.`) : null,
+      h("h3", {}, t("about.credits")),
+      h("p", {}, tn("about.credits_1", { licence: link("https://inducks.org/inducks/COPYING", t("about.licence_link")) })),
+      h("p", {}, tn("about.credits_2", { dm: link("https://github.com/bperel/DucksManager", "DucksManager") })),
+      h("p", {}, t("about.credits_3")),
+      h("p", {}, link("https://github.com/Jonathan8520/coup-de-patte", t("about.source_code"))),
     ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Crédits"),
+  ]);
+}
+
+export function openLanguage() {
+  let sheet;
+  const choose = async (code) => {
+    if (code !== lang()) {
+      await setLang(code);
+      await loadTitles();
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    }
+    close(sheet);
+  };
+  const list = h(
+    "ul",
+    { class: "lang-list" },
+    LANGS.map((l) =>
       h(
-        "p",
+        "li",
         {},
-        "Une partie du contenu de ce site provient des données d'Inducks, utilisées selon ",
-        h("a", { href: "https://inducks.org/inducks/COPYING", target: "_blank", rel: "noopener" }, "la licence Inducks"),
-        ".",
+        h(
+          "button",
+          { class: "lang-choice", type: "button", lang: l.code, "aria-pressed": String(l.code === lang()), onclick: () => choose(l.code) },
+          h("span", {}, l.name),
+          l.code === lang() ? icon("i-check") : null,
+        ),
       ),
-      h(
-        "p",
-        {},
-        "Le jeu reprend l'idée de Duckguessr, créé par l'équipe de ",
-        h("a", { href: "https://github.com/bperel/DucksManager", target: "_blank", rel: "noopener" }, "DucksManager"),
-        ".",
-      ),
-      h("p", {}, "Les personnages et histoires Disney sont © Disney. Ce site est un projet de fan, sans lien avec Disney."),
-      h("p", {}, h("a", { href: "https://github.com/Jonathan8520/coup-de-patte", target: "_blank", rel: "noopener" }, "Code source sur GitHub"), "."),
     ),
+  );
+  sheet = openSheet(t("lang.title"), [
+    list,
+    h("p", { class: "muted" }, t("lang.note")),
+    h("p", {}, link("https://github.com/Jonathan8520/coup-de-patte/issues", t("lang.report"))),
   ]);
 }
 
 // ------------------------------------------------------------------ l'atelier
 
 function sampleThumb(item, artist) {
-  const box = h("button", { class: "sample", type: "button", "aria-label": `Voir la planche « ${item.title || item.original || "Sans titre"} »` });
+  const title = titleOf(item);
+  const box = h("button", { class: "sample", type: "button", "aria-label": t("atelier.view_page", { title }) });
   const img = new Image();
   img.alt = "";
   img.decoding = "async";
@@ -621,17 +613,16 @@ function sampleThumb(item, artist) {
     box.append(img);
     box.classList.add("ready");
   };
-  img.onerror = () => box.classList.add("broken");
+  img.onerror = () => {
+    box.classList.add("broken");
+    box.append(h("span", { class: "sample-missing" }, t("common.image_missing")));
+  };
   img.src = imageUrl(item);
   box.addEventListener("click", () =>
     openPicture({
       src: imageUrl(item),
-      alt: `Planche de ${artist.name}`,
-      caption: [
-        h("strong", {}, `« ${item.title || item.original || "Sans titre"} »`),
-        item.year ? ` (${item.year}), ` : ", ",
-        h("a", { href: storyUrl(item.story), target: "_blank", rel: "noopener" }, "voir l'histoire sur Inducks"),
-      ],
+      alt: t("atelier.page_of", { name: artist.name }),
+      caption: [h("strong", {}, title), item.year ? ` (${item.year}), ` : ", ", link(storyUrl(item.story), t("common.see_story"))],
     }),
   );
   return box;
@@ -655,7 +646,7 @@ function artistEntry(code, artist, count, items, index) {
     "button",
     { class: "artist-head", type: "button", "aria-expanded": "false", "aria-controls": id },
     face,
-    h("span", { class: "artist-id" }, h("strong", {}, artist.name), h("small", {}, [details, plural(count, "histoire", "histoires")].filter(Boolean).join(", "))),
+    h("span", { class: "artist-id" }, h("strong", {}, artist.name), h("small", {}, [details, t("atelier.stories", { n: count })].filter(Boolean).join(", "))),
     h("span", { class: "chevron", "aria-hidden": "true" }),
   );
   let filled = false;
@@ -665,7 +656,7 @@ function artistEntry(code, artist, count, items, index) {
       filled = true;
       inner.append(
         h("div", { class: "samples" }, items.slice(0, 4).map((item) => sampleThumb(item, artist))),
-        h("p", { class: "artist-more" }, h("a", { href: artistUrl(code), target: "_blank", rel: "noopener" }, `Toute l'œuvre de ${artist.name} sur Inducks`)),
+        h("p", { class: "artist-more" }, link(artistUrl(code), t("atelier.more", { name: artist.name }))),
       );
     }
     article.classList.toggle("open", open);
@@ -676,37 +667,29 @@ function artistEntry(code, artist, count, items, index) {
 }
 
 export async function atelierView(root, modeId) {
-  const [meta, artists] = await Promise.all([loadMeta(), loadArtists()]);
-  const order = GROUPS.flatMap((g) => g.ids);
-  const rank = (id) => (order.includes(id) ? order.indexOf(id) : order.length);
-  const modes = [...meta.modes].sort((x, y) => rank(x.id) - rank(y.id));
+  const [meta, artists] = await Promise.all([loadMeta(), loadArtists(), loadTitles()]);
+  const groups = groupModes(meta);
+  const modes = [...groups.selection, ...groups.country, ...groups.production];
   const current = modes.find((m) => m.id === modeId) || modes[0];
   const mode = await loadMode(current.id);
   return () => {
     const tabs = h(
       "nav",
-      { class: "tabs", "aria-label": "Choisir un groupe de dessinateurs" },
-      modes.map((m) =>
-        h("a", { class: "tab", href: `#/atelier/${m.id}`, "aria-current": m.id === current.id ? "page" : null }, m.name),
-      ),
+      { class: "tabs", "aria-label": t("atelier.tabs") },
+      modes.map((m) => h("a", { class: "tab", href: `#/atelier/${m.id}`, "aria-current": m.id === current.id ? "page" : null }, modeName(m))),
     );
     root.replaceChildren(
       h(
         "div",
         { class: "atelier" },
-        h(
-          "header",
-          { class: "atelier-head" },
-          h("h1", {}, "L'atelier"),
-          h("p", { class: "lede" }, "Ouvre un dessinateur pour voir quelques-unes de ses planches. Touche une planche pour l'afficher en entier."),
-        ),
+        h("header", { class: "atelier-head" }, h("h1", {}, t("atelier.title")), h("p", { class: "lede" }, t("atelier.lede"))),
         tabs,
         h(
           "div",
           { class: "artist-list" },
           mode.artists.map((code, i) => artistEntry(code, artists[code] || { name: code }, mode.counts?.[i] || 0, mode._byArtist.get(code) || [], i)),
         ),
-        h("div", { class: "btn-row atelier-foot" }, h("a", { class: "btn btn-yellow btn-balloon", href: `#/jouer/${current.id}` }, `Jouer : ${current.name}`)),
+        h("div", { class: "btn-row atelier-foot" }, h("a", { class: "btn btn-yellow btn-balloon", href: `#/jouer/${current.id}` }, t("atelier.play", { mode: modeName(current) }))),
       ),
     );
     tabs.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest", inline: "center" });
@@ -723,17 +706,17 @@ export async function pastDailiesView(root) {
     const rows = days.map((day) => {
       const game = daily.days[day];
       const n = daysBetween(daily.launch, day) + 1;
-      const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
+      const mode = modeName(meta.modes.find((m) => m.id === game.mode) || { id: game.mode, name: "" });
       const own = day === today ? dailyResult(day) : archiveResult(day) || dailyResult(day);
-      const status = own ? `${number.format(own.score)} pts` : day === today ? "À jouer aujourd'hui" : "Pas encore joué";
+      const status = own ? `${number.format(own.score)} ${t("common.pts")}` : day === today ? t("past.today") : t("past.not_played");
       return h(
         "li",
         {},
         h(
           "a",
           { class: "past", href: day === today ? "#/jour" : `#/jour/${day}` },
-          h("span", { class: "past-n" }, `n°${n}`),
-          h("span", { class: "past-what" }, h("strong", {}, capitalize(formatDay(day))), h("small", {}, modeName)),
+          h("span", { class: "past-n" }, t("past.n", { n })),
+          h("span", { class: "past-what" }, h("strong", {}, capitalize(formatDay(day))), h("small", {}, mode)),
           h("span", { class: own ? "past-score" : "past-score muted" }, status),
         ),
       );
@@ -742,13 +725,8 @@ export async function pastDailiesView(root) {
       h(
         "div",
         { class: "atelier" },
-        h(
-          "header",
-          { class: "atelier-head" },
-          h("h1", {}, "Défis précédents"),
-          h("p", { class: "lede" }, "Les défis passés se rejouent autant de fois que tu veux. Seul le défi du jour compte pour ta série."),
-        ),
-        days.length > 1 ? null : h("p", { class: "muted" }, "Le premier défi est celui d'aujourd'hui : les suivants s'ajouteront ici jour après jour."),
+        h("header", { class: "atelier-head" }, h("h1", {}, t("past.title")), h("p", { class: "lede" }, t("past.lede"))),
+        days.length > 1 ? null : h("p", { class: "muted" }, t("past.first")),
         h("ol", { class: "past-list" }, rows),
       ),
     );

@@ -1,6 +1,6 @@
 // Réseau d'abord, cache en secours : l'appli reste à jour et s'ouvre même hors ligne.
 const CACHE = "coup-de-patte-__VERSION__";
-const SHELL = ["./", "index.html", "css/style.css", "js/app.js", "js/game.js", "js/views.js", "js/data.js", "js/util.js", "js/rng.js", "js/store.js", "js/dialogs.js", "icons/favicon.svg", "manifest.webmanifest"];
+const SHELL = ["./", "index.html", "css/style.css", "js/app.js", "js/game.js", "js/views.js", "js/data.js", "js/util.js", "js/rng.js", "js/store.js", "js/dialogs.js", "js/i18n.js", "js/modes.js", "i18n/fr.json", "icons/favicon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
