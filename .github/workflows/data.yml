@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "pipeline/build_data.py"
+      - ".github/workflows/data.yml"
   workflow_dispatch:
     inputs:
       publish:
@@ -51,7 +52,8 @@ jobs:
         run: python pipeline/build_data.py --archive isv.tgz --out site/data
 
       - name: Garder les données de l'essai à blanc
-        if: inputs.publish == false
+        # inputs.publish n'existe qu'au lancement manuel : ailleurs, on publie toujours.
+        if: github.event_name == 'workflow_dispatch' && !inputs.publish
         uses: actions/upload-artifact@v7
         with:
           name: donnees
@@ -60,7 +62,7 @@ jobs:
 
       - name: Enregistrer les données
         id: commit
-        if: inputs.publish != false
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
         run: |
           git config user.name "Jonathan Levy"
           git config user.email "jonathan.levy2@etu.univ-paris1.fr"
