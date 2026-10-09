@@ -11,6 +11,11 @@ on:
     paths:
       - "pipeline/build_data.py"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Enregistrer et publier les données (sinon : essai à blanc, données en artefact)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -45,8 +50,17 @@ jobs:
       - name: Construire les données
         run: python pipeline/build_data.py --archive isv.tgz --out site/data
 
+      - name: Garder les données de l'essai à blanc
+        if: inputs.publish == false
+        uses: actions/upload-artifact@v7
+        with:
+          name: donnees
+          path: site/data
+          retention-days: 3
+
       - name: Enregistrer les données
         id: commit
+        if: inputs.publish != false
         run: |
           git config user.name "Jonathan Levy"
           git config user.email "jonathan.levy2@etu.univ-paris1.fr"

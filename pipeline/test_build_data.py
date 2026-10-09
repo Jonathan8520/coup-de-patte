@@ -142,6 +142,20 @@ class PipelineTest(unittest.TestCase):
         tous = self.read("mode-tous.json")
         self.assertEqual({code[0] for code in tous["artists"]}, {"U", "I"})
 
+    def test_kinds_and_translated_titles(self) -> None:
+        self.run_pipeline()
+        meta = {m["id"]: m for m in self.read("meta.json")["modes"]}
+        self.assertEqual(meta["us"]["kind"], "country")
+        self.assertEqual(meta["us"]["countries"], ["us"])
+        self.assertEqual(meta["fr"]["kind"], "kiosk")
+        self.assertEqual(meta["tous"]["kind"], "selection")
+        self.assertEqual(self.read("meta.json")["recentFrom"], TODAY.year - 20)
+        english = self.read("titles/en.json")
+        us = self.read("mode-us.json")
+        self.assertTrue(english)
+        self.assertTrue(set(english) <= {row[1] for m in meta for row in self.read(f"mode-{m}.json")["items"]} | {row[1] for row in self.read("archive.json")["items"]})
+        self.assertIn(us["items"][0][1], english)
+
     def test_daily_is_stable_and_complete(self) -> None:
         self.run_pipeline()
         first = self.read("daily.json")["days"]

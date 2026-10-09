@@ -64,6 +64,22 @@ MAX_ARTISTS_PER_MODE = 40
 ARTISTS_PER_GAME = 9
 ROUNDS_PER_GAME = 8
 # Mode débutant : de grands noms aux styles bien distincts, quel que soit le pays de publication.
+# Kiosques : ce qui a paru récemment dans chaque pays, un par langue de l'interface.
+# La France garde l'identifiant « fr » de ses débuts.
+KIOSKS = {
+    "fr": ("fr",), "lu-it": ("it",), "lu-de": ("de",), "lu-es": ("es",), "lu-br": ("br",),
+    "lu-nl": ("nl",), "lu-dk": ("dk",), "lu-no": ("no",), "lu-se": ("se",), "lu-fi": ("fi",),
+    "lu-us": ("us", "gb"),
+}
+# Langues des titres traduits, avec les codes de langue d'Inducks correspondants.
+TITLE_LANGS = {
+    "en": ("en",), "it": ("it",), "de": ("de",), "es": ("es",), "pt": ("pt-br", "pt"),
+    "nl": ("nl",), "da": ("da",), "nb": ("no", "nb"), "sv": ("sv",), "fi": ("fi",),
+}
+# Identifiants historiques des modes par pays.
+COUNTRY_IDS = {"us": "us", "it": "it", "fr": "francais"}
+COUNTRY_MIN_ITEMS = 4
+
 BEGINNER_NAMES = (
     "Carl Barks", "Don Rosa", "Romano Scarpa", "Giorgio Cavazzano", "Vicar", "Daan Jippes",
     "Floyd Gottfredson", "Giovan Battista Carpi", "Massimo De Vita", "William Van Horn",
@@ -86,10 +102,16 @@ class Mode:
     id: str
     name: str
     blurb: str
+    # selection, country (nationalité), production (code d'histoire) ou kiosk (pays de publication)
+    kind: str = "selection"
+    countries: tuple[str, ...] = ()
     items: list[dict] = field(default_factory=list)
     artists: list[str] = field(default_factory=list)
     # Nombre total d'histoires jouables par dessinateur (avant plafonnement) : sert de poids au tirage.
     counts: list[int] = field(default_factory=list)
+    # Histoires jouables de tous les dessinateurs retenus avant plafonnement : la taille de
+    # l'école, qui sert à ranger les modes par pays.
+    stories: int = 0
 
 
 # --------------------------------------------------------------------------
@@ -216,39 +238,45 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         and (to_int(row["rowsperpage"]) is None or to_int(row["rowsperpage"]) >= 3)
     }
 
-    # 2. Publications françaises récentes (pour le mode « magazines français »).
-    french_pubs = {
-        row["publicationcode"]
+    # 2. Publications récentes de chaque pays (pour les kiosques).
+    kiosk_countries = {country for countries in KIOSKS.values() for country in countries}
+    pub_country = {
+        row["publicationcode"]: row["countrycode"]
         for row in data["inducks_publication"]
-        if row["countrycode"] == "fr"
+        if row["countrycode"] in kiosk_countries
     }
     recent_from = today.year - RECENT_YEARS
-    recent_french_issues = {
-        row["issuecode"]
+    recent_issues = {
+        row["issuecode"]: pub_country[row["publicationcode"]]
         for row in data["inducks_issue"]
-        if row["publicationcode"] in french_pubs
+        if row["publicationcode"] in pub_country
         and (year_of(row["oldestdate"]) or 0) >= recent_from
     }
-    log.info("Numéros français depuis %d : %d", recent_from, len(recent_french_issues))
+    log.info("Numéros récents (depuis %d) dans les pays des kiosques : %d", recent_from, len(recent_issues))
 
-    recent_french_stories: Counter[str] = Counter()
+    recent_stories: dict[str, set[str]] = defaultdict(set)
     french_titles: dict[str, str] = {}
     scanned_entries: dict[str, dict] = {}
+    languages: Counter[str] = Counter()
     for row in data["inducks_entry"]:
         svc = row["storyversioncode"]
         if not svc:
             continue
+        languages[row["languagecode"]] += 1
         if row["languagecode"] == "fr" and row["title"]:
             story = versions.get(svc, ("", ""))[0]
             if story and story not in french_titles:
                 french_titles[story] = row["title"]
-        if row["issuecode"] in recent_french_issues:
+        country = recent_issues.get(row["issuecode"])
+        if country:
             story = versions.get(svc, ("", ""))[0]
             if story:
-                recent_french_stories[story] += 1
+                recent_stories[country].add(story)
         if row["entrycode"] in scans:
             scanned_entries[row["entrycode"]] = row
-    log.info("Histoires publiées en France récemment : %d", len(recent_french_stories))
+    log.info("Langues d'Inducks les plus présentes : %s", ", ".join(f"{k} ({v})" for k, v in languages.most_common(25)))
+    for country in sorted(recent_stories):
+        log.info("Histoires parues récemment, %s : %d", country, len(recent_stories[country]))
 
     # 3. Un seul dessinateur, sans doute sur l'attribution.
     needed_versions = {row["storyversioncode"] for row in scanned_entries.values()}
@@ -313,27 +341,34 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     for item in items:
         by_artist[item["artist"]].append(item)
 
+    # Titres dans les autres langues de l'interface : le plus fréquent parmi les parutions.
+    playable_stories = {item["story"] for item in items}
+    inducks_to_lang = {code: lang for lang, codes in TITLE_LANGS.items() for code in codes}
+    title_counts: dict[str, dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+    for row in data["inducks_entry"]:
+        lang = inducks_to_lang.get(row["languagecode"])
+        if not lang or not row["title"]:
+            continue
+        story = versions.get(row["storyversioncode"], ("", ""))[0]
+        if story in playable_stories:
+            title_counts[lang][story][re.sub(r"\s+", " ", row["title"]).strip()] += 1
+    titles = {
+        lang: {story: counts.most_common(1)[0][0] for story, counts in per_story.items()}
+        for lang, per_story in title_counts.items()
+    }
+    for lang in TITLE_LANGS:
+        log.info("Titres traduits, %s : %d", lang, len(titles.get(lang, {})))
+
     # 5. Modes de jeu.
     def nationality(code: str) -> str:
         return persons[code]["nationalitycountrycode"]
 
     modes = {
-        "us": Mode("us", "Les Américains", "Barks, Gottfredson, Murry et les autres dessinateurs des États-Unis."),
-        "it": Mode("it", "Les Italiens", "Scarpa, Cavazzano, De Vita : l'école de Topolino."),
-        "francais": Mode(
-            "francais",
-            "Les Français",
-            "Claude Marin, Pierre Nicolas, Thomas Cabellic : les dessinateurs du Journal de Mickey et de Picsou Magazine.",
-        ),
         "egmont": Mode(
             "egmont",
             "L'école Egmont",
             "Vicar, Branca, Ferioli, Midthun : les histoires produites pour l'Europe du Nord.",
-        ),
-        "fr": Mode(
-            "fr",
-            "Lu en France",
-            f"Tout ce que la presse française a publié depuis {recent_from}, d'où qu'il vienne.",
+            kind="production",
         ),
         "tous": Mode(
             "tous",
@@ -361,9 +396,8 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         mode.artists = ranked
         mode.counts = [totals[a] for a in ranked]
         mode.items = [item for artist in ranked for item in pool[artist]]
+        mode.stories = sum(totals.values())
 
-    fill(modes["us"], lambda item: nationality(item["artist"]) == "us")
-    fill(modes["it"], lambda item: nationality(item["artist"]) == "it")
     # Les Français : nationalité française, ou nationalité non renseignée mais des histoires
     # surtout produites en France (codes « F »). Moins de planches scannées : quatre cases suffisent.
     french_made: dict[str, float] = {}
@@ -374,11 +408,27 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         country = nationality(code)
         return country == "fr" or (not country and french_made.get(code, 0) >= 0.6)
 
-    fill(modes["francais"], lambda item: is_french(item["artist"]), min_items=4)
+    def country_of(code: str) -> str:
+        return "fr" if is_french(code) else nationality(code)
+
+    # Un mode par pays de naissance du trait : il en faut neuf dessinateurs pour jouer.
+    countries = Counter(country_of(artist) for artist in by_artist if country_of(artist))
+    for country in sorted(countries):
+        mode_id = COUNTRY_IDS.get(country, f"pays-{country}")
+        mode = Mode(mode_id, country.upper(), "", kind="country", countries=(country,))
+        fill(mode, lambda item, c=country: country_of(item["artist"]) == c, min_items=COUNTRY_MIN_ITEMS)
+        if len(mode.artists) >= ARTISTS_PER_GAME:
+            modes[mode_id] = mode
+
     # Les codes d'histoire « D » sont ceux des productions Egmont (Danemark).
     fill(modes["egmont"], lambda item: item["story"].startswith("D "))
     fill(modes["tous"], lambda item: True, max_artists=ALL_ARTISTS, max_items=ALL_ITEMS_PER_ARTIST)
-    fill(modes["fr"], lambda item: recent_french_stories[item["story"]] > 0)
+
+    for kiosk_id, kiosk_countries_ in KIOSKS.items():
+        published = set().union(*(recent_stories.get(c, set()) for c in kiosk_countries_))
+        mode = Mode(kiosk_id, "Kiosque", f"Tout ce qui y a paru depuis {recent_from}.", kind="kiosk", countries=kiosk_countries_)
+        fill(mode, lambda item, p=published: item["story"] in p)
+        modes[kiosk_id] = mode
 
     wanted = {fold(name) for name in BEGINNER_NAMES}
     beginners = {code for code in by_artist if fold(persons[code]["fullname"]) in wanted}
@@ -404,7 +454,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             "died": year_of(person["deceaseddate"]),
             "photo": person["photofilename"] or None,
         }
-    return artists, modes
+    return artists, modes, titles, recent_from
 
 
 # --------------------------------------------------------------------------
@@ -477,7 +527,15 @@ def write_json(path: Path, payload) -> None:
     path.write_text(text + "\n", encoding="utf-8")
 
 
-def write_outputs(out: Path, artists: dict, modes: dict[str, Mode], today: dt.date, source: str) -> None:
+def write_outputs(
+    out: Path,
+    artists: dict,
+    modes: dict[str, Mode],
+    today: dt.date,
+    source: str,
+    titles: dict[str, dict[str, str]] | None = None,
+    recent_from: int | None = None,
+) -> None:
     daily_path = out / "daily.json"
     previous = json.loads(daily_path.read_text(encoding="utf-8")) if daily_path.exists() else {}
 
@@ -521,6 +579,10 @@ def write_outputs(out: Path, artists: dict, modes: dict[str, Mode], today: dt.da
             },
         )
     write_json(out / "artists.json", artists)
+    # Titres traduits, limités aux histoires réellement jouables (modes et défis du jour).
+    in_play = {item["story"] for mode in modes.values() for item in mode.items} | {row[1] for row in archive_rows}
+    for lang, by_story in (titles or {}).items():
+        write_json(out / "titles" / f"{lang}.json", {story: by_story[story] for story in sorted(in_play) if story in by_story})
     write_json(daily_path, daily)
     write_json(old_path, {"artists": archive_artist_info, "items": archive_rows})
     write_json(
@@ -530,13 +592,17 @@ def write_outputs(out: Path, artists: dict, modes: dict[str, Mode], today: dt.da
             "source": source,
             "rounds": ROUNDS_PER_GAME,
             "artistsPerGame": ARTISTS_PER_GAME,
+            "recentFrom": recent_from,
             "modes": [
                 {
                     "id": m.id,
+                    "kind": m.kind,
+                    "countries": list(m.countries),
                     "name": m.name,
                     "blurb": m.blurb,
                     "artists": len(m.artists),
                     "items": len(m.items),
+                    "stories": m.stories,
                     "faces": m.artists[:4],
                 }
                 for m in modes.values()
@@ -556,11 +622,11 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     data = load_tables(args.archive)
-    artists, modes = build(data, args.today)
+    artists, modes, titles, recent_from = build(data, args.today)
     if len(modes) < 2:
         log.error("Trop peu de modes jouables, on garde les données précédentes.")
         return 1
-    write_outputs(args.out, artists, modes, args.today, args.source)
+    write_outputs(args.out, artists, modes, args.today, args.source, titles, recent_from)
     return 0
 
 
