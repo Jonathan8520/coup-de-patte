@@ -95,6 +95,12 @@ def make_archive(path: Path, traced: frozenset[str] = frozenset()) -> None:
         entries.append([f"e{svc}", issue, svc, "fr", "Piège", cover, "N", "N", comment, changes])
         urls.append([f"e{svc}", "webusers", "1", f"2020/01/fr_{svc}.jpg", storycode, public])
 
+    # Nom complet de trois mots avec un alias officiel plus court : c'est l'alias qui s'affiche.
+    persons = [[*row[:2], "Ignazio Uno Secondo", *row[3:]] if row[0] == "I1" else row for row in persons]
+    files["inducks_personalias.isv"] = isv(
+        ["personcode", "surname", "givenname", "official"],
+        [["I1", "Uno", "Nazio", "Y"], ["I1", "Secondo", "Ignazio Uno", "Y"], ["I2", "Due", "Ignored", "N"]],
+    )
     files["inducks_person.isv"] = isv(
         ["personcode", "nationalitycountrycode", "fullname", "isfake", "borndate", "deceaseddate", "photofilename"],
         persons,
@@ -170,6 +176,10 @@ class PipelineTest(unittest.TestCase):
         self.assertTrue(all(code[0] in "FN" for code in francais["artists"]))
         tous = self.read("mode-tous.json")
         self.assertEqual({code[0] for code in tous["artists"]}, {"U", "I"})
+        self.assertEqual(len(tous["weights"]), len(tous["artists"]))
+        artists = self.read("artists.json")
+        self.assertEqual(artists["I1"]["name"], "Nazio Uno")
+        self.assertEqual(artists["I2"]["name"], "Artiste I2")
 
     def test_kinds_and_translated_titles(self) -> None:
         self.run_pipeline()

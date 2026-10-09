@@ -15,10 +15,12 @@ Un jeu pour reconnaître le trait des dessinateurs Disney (Barks, Rosa, Scarpa, 
 - **15 secondes par case.** 100 points par bonne réponse, plus un bonus de rapidité (jusqu'à 100 points) tant que la barre est jaune, soit 7,5 secondes.
 - **La case s'ouvre sur un détail puis s'élargit.** La bande du haut de la planche (titre, crédits) reste cachée jusqu'à la réponse, puis toute la page se dévoile avec le titre et le lien vers Inducks.
 - **Modes** :
-  - *Pour commencer* : Débutant (grands noms aux styles marqués) et Tous les dessinateurs (les 60 plus publiés).
-  - *Par pays* : un mode par école nationale, créé automatiquement dès que neuf dessinateurs de ce pays ont assez de planches (aujourd'hui Argentine, Brésil, Danemark, Espagne, France, Italie, Pays-Bas, États-Unis).
+  - *Pour commencer* : Débutant (grands noms aux styles marqués) et Tous les dessinateurs (près de 350 aujourd'hui).
+  - *Par pays* : un mode par pays, créé automatiquement dès que neuf de ses dessinateurs ont assez de planches (aujourd'hui Argentine, Brésil, Danemark, Espagne, France, Italie, Pays-Bas, États-Unis).
   - *Au kiosque* : tout ce qui a paru dans un pays depuis 20 ans, d'où que ça vienne (France, Italie, Allemagne, Espagne, Brésil, Pays-Bas, Danemark, Norvège, Suède, Finlande, monde anglophone). Le kiosque du pays de la langue choisie passe en premier.
-  - *Autrement* : L'école Egmont (les histoires produites pour l'Europe du Nord).
+  - *Autrement* : Les histoires Egmont (produites pour l'Europe du Nord).
+- **Qui est de la partie** : dans chaque mode, tous les dessinateurs qui ont au moins 30 planches jouables, ceux dont les histoires ont paru au moins 400 fois dans le monde (même avec peu de planches scannées), et au moins les 40 plus connus quand le mode est plus petit. Les 9 noms d'une partie sont tirés au sort en favorisant les plus connus, mesurés au nombre de parutions de leurs histoires dans le monde : un auteur d'histoires longues et très rééditées (Rosa, Casty) pèse autant qu'un auteur de centaines de gags.
+- **Noms d'usage** : quand Inducks donne un nom complet (« Francisco Rodriguez Peinado »), le jeu affiche le nom officiel plus court sous lequel on le connaît (« Paco Rodriguez »). L'Atelier retrouve un dessinateur par n'importe lequel de ses noms.
 - **L'atelier** : quelques planches de chaque dessinateur, pour apprendre à reconnaître son trait.
 - **Défis précédents** : les défis des jours passés, à rejouer sans toucher à la série.
 - **Défi du jour** : les mêmes cases pour tout le monde, une tentative, résultat à partager en carrés de couleur.

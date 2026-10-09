@@ -46,6 +46,7 @@ TABLES: dict[str, tuple[str, ...]] = {
         "personcode", "nationalitycountrycode", "fullname", "isfake",
         "borndate", "deceaseddate", "photofilename",
     ),
+    "inducks_personalias": ("personcode", "surname", "givenname", "official"),
     "inducks_story": ("storycode", "title", "firstpublicationdate", "storycomment"),
     "inducks_storyreference": ("fromstorycode", "tostorycode", "referencereasonid"),
     "inducks_referencereason": ("referencereasonid", "referencereasontext"),
@@ -85,8 +86,23 @@ GAME_SUBSERIES = {"Order the panels"}
 REDRAWN_STORY = re.compile(r"\bredraw|\bredrawn|re-drawn|\bremake\b|\btraced\b|\bswipe", re.I)
 
 MIN_ITEMS_PER_ARTIST = 6
+# Un mode accueille tous les dessinateurs qui ont au moins OPEN_THRESHOLD cases jouables,
+# et au moins MIN_ARTISTS_PER_MODE dessinateurs quand il y en a assez (les plus connus).
+OPEN_THRESHOLD = 30
+# … ou, avec moins de cases (MIN_ITEMS_PER_ARTIST au moins), des histoires parues au moins
+# FAME_THRESHOLD fois dans le monde : les grands noms peu scannés (Tony Fernández, Hank
+# Porter, Ulrich Schröder) restent de la partie.
+FAME_THRESHOLD = 400
+MIN_ARTISTS_PER_MODE = 40
+# Cases gardées par mode, réparties selon la notoriété (les plus tirés ont plus de cases),
+# entre MIN_ITEMS_ALLOCATED et MAX_ITEMS_PER_ARTIST par dessinateur.
+ITEMS_BUDGET = 3600
+MIN_ITEMS_ALLOCATED = 6
 MAX_ITEMS_PER_ARTIST = 60
-MAX_ARTISTS_PER_MODE = 40
+# Poids au tirage : nombre de parutions de ses histoires dans le monde, à cette puissance.
+WEIGHT_EXPONENT = 0.75
+# Noms d'usage quand la fiche Inducks donne le nom complet (contrôlés à la main).
+NAME_OVERRIDES: dict[str, str] = {}
 ARTISTS_PER_GAME = 9
 ROUNDS_PER_GAME = 8
 # Mode débutant : de grands noms aux styles bien distincts, quel que soit le pays de publication.
@@ -118,9 +134,6 @@ LAUNCH_DATE = dt.date(2026, 10, 9)
 # Rotation des défis du jour, du lundi au dimanche.
 # Les jours déjà publiés gardent leur mode : seule la suite du calendrier suit cette rotation.
 DAILY_ROTATION = ("francais", "it", "us", "egmont", "tous", "fr", "debutant")
-# Nombre de dessinateurs et de cases par dessinateur pour le mode « Tous les dessinateurs ».
-ALL_ARTISTS = 60
-ALL_ITEMS_PER_ARTIST = 30
 
 
 @dataclass
@@ -133,10 +146,11 @@ class Mode:
     countries: tuple[str, ...] = ()
     items: list[dict] = field(default_factory=list)
     artists: list[str] = field(default_factory=list)
-    # Nombre total d'histoires jouables par dessinateur (avant plafonnement) : sert de poids au tirage.
+    # Nombre d'histoires jouables de chaque dessinateur dans ce mode.
     counts: list[int] = field(default_factory=list)
-    # Histoires jouables de tous les dessinateurs retenus avant plafonnement : la taille de
-    # l'école, qui sert à ranger les modes par pays.
+    # Poids de chaque dessinateur au tirage (notoriété).
+    weights: list[float] = field(default_factory=list)
+    # Histoires jouables de tous les dessinateurs du mode : sert à ranger les modes par pays.
     stories: int = 0
 
 
@@ -231,11 +245,14 @@ def clean_name(fullname: str) -> str:
 # et toutes les cases jouables avant le choix des modes (identifiant -> dessinateur).
 EXCLUDED: dict[str, set[str]] = defaultdict(set)
 ELIGIBLE: dict[str, str] = {}
+# Notoriété de chaque dessinateur : nombre de parutions de ses histoires dans le monde.
+FAME: Counter = Counter()
 
 
 def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, Mode]]:
     EXCLUDED.clear()
     ELIGIBLE.clear()
+    FAME.clear()
     sites = {
         row["sitecode"]: row["urlbase"]
         for row in data["inducks_site"]
@@ -333,15 +350,27 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 
     artists_of: dict[str, set[str]] = defaultdict(set)
     art_of_source: dict[str, set[str]] = defaultdict(set)
+    art_of_version: dict[str, list[str]] = defaultdict(list)
     for row in data["inducks_storyjob"]:
         if row["plotwritartink"] != "a":
             continue
         who = "?" if row["doubt"] == "Y" else row["personcode"]
         if row["storyversioncode"] in needed_versions:
             artists_of[row["storyversioncode"]].add(who)
-        story = versions.get(row["storyversioncode"], ("", ""))[0]
+        story, kind = versions.get(row["storyversioncode"], ("", ""))
         if story in sources:
             art_of_source[story].add(who)
+        if kind == "n" and who != "?":
+            art_of_version[row["storyversioncode"]].append(who)
+
+    # Notoriété : combien de fois les histoires de chaque dessinateur ont paru dans le monde.
+    # Un auteur d'histoires longues et très rééditées (Rosa, Casty) pèse autant qu'un auteur
+    # de centaines de gags d'une page.
+    fame = FAME
+    for row in data["inducks_entry"]:
+        for who in art_of_version.get(row["storyversioncode"], ()):
+            fame[who] += 1
+    del art_of_version
 
     def borrowed_from_someone_else(storycode: str, artist: str) -> bool:
         # Un remake par le même dessinateur reste de sa main ; un original au dessinateur
@@ -441,14 +470,14 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     modes = {
         "egmont": Mode(
             "egmont",
-            "L'école Egmont",
+            "Les histoires Egmont",
             "Vicar, Branca, Ferioli, Midthun : les histoires produites pour l'Europe du Nord.",
             kind="production",
         ),
         "tous": Mode(
             "tous",
             "Tous les dessinateurs",
-            "Les soixante dessinateurs les plus publiés, tous pays et toutes époques confondus.",
+            "Tous ceux qui ont au moins trente planches jouables, tous pays et toutes époques confondus.",
         ),
         "debutant": Mode(
             "debutant",
@@ -457,21 +486,32 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         ),
     }
 
-    def fill(mode: Mode, keep, *, max_artists=MAX_ARTISTS_PER_MODE, max_items=MAX_ITEMS_PER_ARTIST, min_items=MIN_ITEMS_PER_ARTIST) -> None:
+    def fill(mode: Mode, keep, *, min_items=MIN_ITEMS_PER_ARTIST) -> None:
         pool: dict[str, list[dict]] = {}
-        totals: dict[str, int] = {}
         for artist, artist_items in by_artist.items():
             selected = [item for item in artist_items if keep(item)]
             if len(selected) >= min_items:
                 selected.sort(key=lambda item: stable_key(mode.id, item["id"]))
-                totals[artist] = len({item["story"] for item in selected})
-                pool[artist] = selected[:max_items]
-        # Les plus publiés d'abord, et non l'ordre alphabétique.
-        ranked = sorted(pool, key=lambda a: (-totals[a], a))[:max_artists]
-        mode.artists = ranked
-        mode.counts = [totals[a] for a in ranked]
-        mode.items = [item for artist in ranked for item in pool[artist]]
-        mode.stories = sum(totals.values())
+                pool[artist] = selected
+        # Les plus connus d'abord (parutions dans le monde), puis les plus fournis.
+        ranked = sorted(pool, key=lambda a: (-fame[a], -len(pool[a]), a))
+        # Tout le monde à partir de OPEN_THRESHOLD cases, ou moins pour les plus parus ; les petits ensembles sont complétés
+        # par les plus connus jusqu'à MIN_ARTISTS_PER_MODE.
+        chosen = [a for a in ranked if len(pool[a]) >= OPEN_THRESHOLD or fame[a] >= FAME_THRESHOLD]
+        if len(chosen) < MIN_ARTISTS_PER_MODE:
+            taken = set(chosen)
+            extra = [a for a in ranked if a not in taken]
+            chosen = sorted(chosen + extra[: MIN_ARTISTS_PER_MODE - len(chosen)], key=ranked.index)
+        weights = [round(max(fame[a], 1) ** WEIGHT_EXPONENT, 2) for a in chosen]
+        total = sum(weights) or 1
+        mode.artists = chosen
+        mode.counts = [len(pool[a]) for a in chosen]
+        mode.weights = weights
+        mode.items = []
+        for artist, w in zip(chosen, weights):
+            share = round(ITEMS_BUDGET * w / total)
+            mode.items += pool[artist][: max(MIN_ITEMS_ALLOCATED, min(MAX_ITEMS_PER_ARTIST, share))]
+        mode.stories = sum(len(items) for items in pool.values())
 
     # Les Français : nationalité française, ou nationalité non renseignée mais des histoires
     # surtout produites en France (codes « F »). Moins de planches scannées : quatre cases suffisent.
@@ -497,7 +537,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 
     # Les codes d'histoire « D » sont ceux des productions Egmont (Danemark).
     fill(modes["egmont"], lambda item: item["story"].startswith("D "))
-    fill(modes["tous"], lambda item: True, max_artists=ALL_ARTISTS, max_items=ALL_ITEMS_PER_ARTIST)
+    fill(modes["tous"], lambda item: True)
 
     for kiosk_id, kiosk_countries_ in KIOSKS.items():
         published = set().union(*(recent_stories.get(c, set()) for c in kiosk_countries_))
@@ -516,14 +556,58 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             del modes[mode.id]
         else:
             log.info("Mode %-9s %3d dessinateurs, %5d cases", mode.id, len(mode.artists), len(mode.items))
-            log.info("    %s", ", ".join(f"{clean_name(persons[a]['fullname'])} ({n})" for a, n in zip(mode.artists, mode.counts)))
+            log.info("    %s", ", ".join(f"{clean_name(persons[a]['fullname'])} ({n}, poids {w})" for a, n, w in zip(mode.artists[:25], mode.counts, mode.weights)))
+
+    # Nom d'usage : quand la fiche donne un nom complet de trois mots ou plus (« Francisco
+    # Rodriguez Peinado ») et qu'un alias officiel plus court garde le même nom de famille
+    # (« Paco Rodriguez »), c'est l'alias qui parle aux lecteurs.
+    official_aliases: dict[str, list[str]] = defaultdict(list)
+    all_aliases: dict[str, list[str]] = defaultdict(list)
+    for row in data["inducks_personalias"]:
+        alias = clean_name(" ".join(part for part in (row["givenname"], row["surname"]) if part))
+        if not alias:
+            continue
+        all_aliases[row["personcode"]].append(alias)
+        # Seuls les alias avec prénom et nom peuvent remplacer le nom affiché
+        # (« Paco Rodriguez », pas le seul nom de famille « Alferez Canos »).
+        if row["official"] == "Y" and row["givenname"].strip() and row["surname"].strip():
+            official_aliases[row["personcode"]].append(alias)
+
+    def other_names(code: str, name: str) -> list[str]:
+        # Pour la recherche de l'Atelier : nom complet et pseudonymes, sans doublons.
+        seen = {fold(name), fold(code)}
+        found = []
+        for alias in [clean_name(persons[code]["fullname"]), *all_aliases.get(code, [])]:
+            if fold(alias) not in seen and len(found) < 6:
+                seen.add(fold(alias))
+                found.append(alias)
+        return found
+
+    def display_name(code: str) -> str:
+        if code in NAME_OVERRIDES:
+            return NAME_OVERRIDES[code]
+        full = clean_name(persons[code]["fullname"])
+        words = fold(full).split()
+        if len(words) < 3:
+            return full
+        candidates = [
+            alias for alias in official_aliases.get(code, [])
+            if 2 <= len(fold(alias).split()) < len(words)
+            and fold(alias).split()[-1] in words[1:]
+            and fold(alias) != fold(full)
+        ]
+        return min(candidates, key=len) if candidates else full
 
     used = {a for mode in modes.values() for a in mode.artists}
     artists = {}
     for code in sorted(used):
         person = persons[code]
+        name = display_name(code)
+        if name != clean_name(person["fullname"]):
+            log.info("Nom d'usage : %s -> %s", clean_name(person["fullname"]), name)
         artists[code] = {
-            "name": clean_name(person["fullname"]),
+            "name": name,
+            "aka": other_names(code, name),
             "country": person["nationalitycountrycode"],
             "born": year_of(person["borndate"]),
             "died": year_of(person["deceaseddate"]),
@@ -536,19 +620,15 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
 # Défis du jour
 
 
-def weight(count: int) -> float:
-    """Les dessinateurs prolifiques sortent plus souvent, sans écraser les autres."""
-    return max(count, 1) ** 0.5
-
-
-def weighted_sample(rng: random.Random, codes: list[str], counts: list[int], k: int) -> list[str]:
-    pool = list(zip(codes, counts or [1] * len(codes)))
+def weighted_sample(rng: random.Random, codes: list[str], weights: list[float], k: int) -> list[str]:
+    """Tirage sans remise : les dessinateurs les plus connus sortent plus souvent."""
+    pool = list(zip(codes, weights or [1.0] * len(codes)))
     chosen = []
     while len(chosen) < k and pool:
-        total = sum(weight(c) for _, c in pool)
+        total = sum(max(w, 0.0001) for _, w in pool)
         pick = rng.random() * total
-        for index, (code, count) in enumerate(pool):
-            pick -= weight(count)
+        for index, (code, w) in enumerate(pool):
+            pick -= max(w, 0.0001)
             if pick <= 0:
                 break
         chosen.append(code)
@@ -558,7 +638,7 @@ def weighted_sample(rng: random.Random, codes: list[str], counts: list[int], k: 
 
 def daily_game(mode: Mode, day: dt.date) -> dict:
     rng = random.Random(f"coup-de-patte/{day.isoformat()}/{mode.id}")
-    artists = weighted_sample(rng, mode.artists, mode.counts, ARTISTS_PER_GAME)
+    artists = weighted_sample(rng, mode.artists, mode.weights, ARTISTS_PER_GAME)
     answers = rng.sample(artists, ROUNDS_PER_GAME)
     by_artist: dict[str, list[dict]] = defaultdict(list)
     for item in mode.items:
@@ -663,6 +743,7 @@ def write_outputs(
                 "mode": mode.id,
                 "artists": mode.artists,
                 "counts": mode.counts,
+                "weights": mode.weights,
                 "items": [compact_item(i) for i in mode.items],
             },
         )

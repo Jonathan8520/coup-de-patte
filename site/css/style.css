@@ -950,7 +950,16 @@ dialog::backdrop { background: transparent; }
   appearance: none;
 }
 .search-input::placeholder { color: var(--ink-2); opacity: 1; }
-.search-input::-webkit-search-cancel-button { cursor: pointer; }
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6 6 18' stroke='black' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6 6 18' stroke='black' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  cursor: pointer;
+}
 .atelier-empty { margin: 0; }
 .atelier-empty a { color: inherit; font-weight: 700; text-underline-offset: 3px; }
 .artist[hidden] { display: none; }

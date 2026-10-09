@@ -112,14 +112,14 @@ def main(argv=None) -> int:
                 f"| {wanted} | {person.get('fullname', '?')} ({code}) | {person.get('nationalitycountrycode') or 'non renseignée'} "
                 f"| {len(mine)} | {len(planches)} | {len(seul)} | {len(scanned)} | {kept.get(code, 0)} |"
             )
-    lines += ["", "| Fiche Inducks | Autres noms | Rang (cases retenues) | Modes où il figure (rang) |", "|---|---|---|---|"]
+    lines += ["", "| Fiche Inducks | Autres noms | Rang (cases retenues) | Parutions dans le monde | Modes où il figure (rang) |", "|---|---|---|---|---|"]
     for wanted in args.names:
         key = bd.fold(wanted)
         for code in [c for c, names in names_of.items() if key in names]:
             in_modes = [f"{m.id} ({m.artists.index(code) + 1}/{len(m.artists)})" for m in modes.values() if code in m.artists]
             lines.append(
                 f"| {persons[code]['fullname']} ({code}) | {', '.join(aliases.get(code, [])) or '-'} "
-                f"| {rank_of.get(code, '-')} sur {len(ranking)} | {', '.join(in_modes) or 'aucun'} |"
+                f"| {rank_of.get(code, '-')} sur {len(ranking)} | {bd.FAME.get(code, 0)} | {', '.join(in_modes) or 'aucun'} |"
             )
     counts = sorted(kept.values(), reverse=True)
     lines += [
