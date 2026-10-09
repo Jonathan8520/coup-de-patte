@@ -53,8 +53,8 @@
   "mode.debutant.name": "Principiante",
   "mode.debutant.blurb": "I grandi nomi dallo stile ben riconoscibile, per allenare l'occhio.",
   "mode.tous.name": "Tutti i disegnatori",
-  "mode.tous.blurb": "I sessanta disegnatori più pubblicati, di ogni paese e di ogni epoca.",
-  "mode.egmont.name": "La scuola Egmont",
+  "mode.tous.blurb": "Centinaia di disegnatori di ogni paese e di ogni epoca. I più noti escono più spesso.",
+  "mode.egmont.name": "Le storie Egmont",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: le storie prodotte per il Nord Europa.",
   "kiosk.title": "Edicola: {country}",
   "kiosk.blurb": "Tutto ciò che vi è uscito dal {year}, da qualunque parte venga.",
@@ -204,6 +204,9 @@
   "atelier.play": "Gioca: {mode}",
   "atelier.view_page": "Vedi la tavola {title}",
   "atelier.page_of": "Tavola di {name}",
+  "atelier.search": "Cerca un disegnatore",
+  "atelier.no_match": "Nessuno con questo nome in questo elenco.",
+  "atelier.search_all": "Cerca tra tutti i disegnatori",
 
   "past.title": "Sfide passate",
   "past.lede": "Le sfide passate si possono rigiocare quante volte vuoi. Per la serie conta solo la sfida del giorno.",
@@ -213,6 +216,5 @@
   "past.n": "n. {n}",
 
   "lang.title": "Lingua",
-  "lang.note": "Le traduzioni sono state scritte con cura, ma qualche errore può essere sfuggito. Puoi segnalarlo su GitHub.",
-  "lang.report": "Segnala un errore di traduzione"
+  "lang.note": "Le traduzioni sono state scritte con cura, ma qualche errore può essere sfuggito."
 }

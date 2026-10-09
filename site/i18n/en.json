@@ -53,8 +53,8 @@
   "mode.debutant.name": "Beginner",
   "mode.debutant.blurb": "The big names with easily recognisable styles, to train your eye.",
   "mode.tous.name": "All artists",
-  "mode.tous.blurb": "The sixty most published artists, from every country and every era.",
-  "mode.egmont.name": "The Egmont school",
+  "mode.tous.blurb": "Hundreds of artists from every country and era. The best known come up more often.",
+  "mode.egmont.name": "Egmont stories",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: the stories produced for Northern Europe.",
   "kiosk.title": "Newsstand: {country}",
   "kiosk.blurb": "Everything published there since {year}, wherever it comes from.",
@@ -204,6 +204,9 @@
   "atelier.play": "Play: {mode}",
   "atelier.view_page": "View the page {title}",
   "atelier.page_of": "Page by {name}",
+  "atelier.search": "Search for an artist",
+  "atelier.no_match": "No one by that name in this list.",
+  "atelier.search_all": "Search all artists",
 
   "past.title": "Past challenges",
   "past.lede": "Past challenges can be replayed as often as you like. Only the daily challenge counts for your streak.",
@@ -213,6 +216,5 @@
   "past.n": "#{n}",
 
   "lang.title": "Language",
-  "lang.note": "Translations were written with care, but a mistake may have slipped through. You can report it on GitHub.",
-  "lang.report": "Report a translation mistake"
+  "lang.note": "Translations were written with care, but a mistake may have slipped through."
 }

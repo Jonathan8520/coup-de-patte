@@ -923,6 +923,38 @@ dialog::backdrop { background: transparent; }
 .tab:hover { background: var(--paper-2); }
 .tab[aria-current="page"] { background: var(--ink); color: var(--paper); }
 
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search svg {
+  position: absolute;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.search-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px 10px 44px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search-input::placeholder { color: var(--ink-2); opacity: 1; }
+.search-input::-webkit-search-cancel-button { cursor: pointer; }
+.atelier-empty { margin: 0; }
+.atelier-empty a { color: inherit; font-weight: 700; text-underline-offset: 3px; }
+.artist[hidden] { display: none; }
+
 .artist-list { display: grid; gap: 10px; }
 .artist { border: 2px solid var(--ink); background: var(--paper); }
 .artist-head {

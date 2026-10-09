@@ -1,6 +1,6 @@
 // Écrans : accueil, fin de partie, défis, statistiques, aide, langue, atelier.
 
-import { h, icon, number, dayKey, formatDay, formatFullDate, daysBetween, untilMidnight, parseDay, capitalize, shareOrCopy, toast } from "./util.js";
+import { h, icon, number, dayKey, formatDay, formatFullDate, daysBetween, untilMidnight, parseDay, capitalize, fold, shareOrCopy, toast } from "./util.js";
 import { loadMeta, loadArtists, loadDaily, loadMode, loadTitles, imageUrl, photoUrl, storyUrl, artistUrl, countryName, lifeSpan, storyTitle } from "./data.js";
 import { getState, dailyResult, archiveResult, dailyStreak, medalFor, nextMedal, markOf, resetAll } from "./store.js";
 import { openSheet, confirmDialog, close, openPicture } from "./dialogs.js";
@@ -593,7 +593,6 @@ export function openLanguage() {
   sheet = openSheet(t("lang.title"), [
     list,
     h("p", { class: "muted" }, t("lang.note")),
-    h("p", {}, link("https://github.com/Jonathan8520/coup-de-patte/issues", t("lang.report"))),
   ]);
 }
 
@@ -641,7 +640,7 @@ function artistEntry(code, artist, count, items, index) {
   const details = [countryName(artist.country), lifeSpan(artist)].filter(Boolean).join(", ");
   const inner = h("div", { class: "artist-inner" });
   const body = h("div", { class: "artist-body", id }, inner);
-  const article = h("article", { class: "artist" });
+  const article = h("article", { class: "artist", "data-search": fold([artist.name, code, ...(artist.aka || [])].join(" ")) });
   const toggle = h(
     "button",
     { class: "artist-head", type: "button", "aria-expanded": "false", "aria-controls": id },
@@ -666,6 +665,39 @@ function artistEntry(code, artist, count, items, index) {
   return article;
 }
 
+// Dernière recherche de l'Atelier, gardée d'un onglet à l'autre.
+let atelierQuery = "";
+
+function atelierSearch(list, current, everyone) {
+  const input = h("input", {
+    class: "search-input",
+    type: "search",
+    value: atelierQuery,
+    placeholder: t("atelier.search"),
+    "aria-label": t("atelier.search"),
+    autocomplete: "off",
+    spellcheck: "false",
+    enterkeyhint: "search",
+  });
+  const elsewhere = everyone && everyone.id !== current.id
+    ? h("a", { href: `#/atelier/${everyone.id}` }, t("atelier.search_all"))
+    : null;
+  const empty = h("p", { class: "atelier-empty muted", hidden: true, role: "status" }, t("atelier.no_match"), elsewhere ? " " : null, elsewhere);
+  const apply = () => {
+    atelierQuery = input.value;
+    const words = fold(input.value).split(/\s+/).filter(Boolean);
+    let shown = 0;
+    for (const article of list.children) {
+      const match = words.every((word) => article.dataset.search.includes(word));
+      article.hidden = !match;
+      if (match) shown += 1;
+    }
+    empty.hidden = shown > 0;
+  };
+  input.addEventListener("input", apply);
+  return { box: h("div", { class: "search" }, icon("i-search"), input), empty, apply };
+}
+
 export async function atelierView(root, modeId) {
   const [meta, artists] = await Promise.all([loadMeta(), loadArtists(), loadTitles()]);
   const groups = groupModes(meta);
@@ -678,20 +710,25 @@ export async function atelierView(root, modeId) {
       { class: "tabs", "aria-label": t("atelier.tabs") },
       modes.map((m) => h("a", { class: "tab", href: `#/atelier/${m.id}`, "aria-current": m.id === current.id ? "page" : null }, modeName(m))),
     );
+    const list = h(
+      "div",
+      { class: "artist-list" },
+      mode.artists.map((code, i) => artistEntry(code, artists[code] || { name: code }, mode.counts?.[i] || 0, mode._byArtist.get(code) || [], i)),
+    );
+    const search = atelierSearch(list, current, modes.find((m) => m.id === "tous"));
     root.replaceChildren(
       h(
         "div",
         { class: "atelier" },
         h("header", { class: "atelier-head" }, h("h1", {}, t("atelier.title")), h("p", { class: "lede" }, t("atelier.lede"))),
         tabs,
-        h(
-          "div",
-          { class: "artist-list" },
-          mode.artists.map((code, i) => artistEntry(code, artists[code] || { name: code }, mode.counts?.[i] || 0, mode._byArtist.get(code) || [], i)),
-        ),
+        search.box,
+        search.empty,
+        list,
         h("div", { class: "btn-row atelier-foot" }, h("a", { class: "btn btn-yellow btn-balloon", href: `#/jouer/${current.id}` }, t("atelier.play", { mode: modeName(current) }))),
       ),
     );
+    if (atelierQuery) search.apply();
     tabs.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest", inline: "center" });
   };
 }

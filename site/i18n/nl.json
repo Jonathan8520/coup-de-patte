@@ -53,8 +53,8 @@
   "mode.debutant.name": "Beginner",
   "mode.debutant.blurb": "De grote namen met een goed herkenbare stijl, om je oog te trainen.",
   "mode.tous.name": "Alle tekenaars",
-  "mode.tous.blurb": "De zestig meest gepubliceerde tekenaars, uit alle landen en tijden.",
-  "mode.egmont.name": "De Egmont-school",
+  "mode.tous.blurb": "Honderden tekenaars uit alle landen en tijden. De bekendste komen vaker voorbij.",
+  "mode.egmont.name": "Egmont-verhalen",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: de verhalen gemaakt voor Noord-Europa.",
   "kiosk.title": "Kiosk: {country}",
   "kiosk.blurb": "Alles wat daar sinds {year} is verschenen, waar het ook vandaan komt.",
@@ -204,6 +204,9 @@
   "atelier.play": "Spelen: {mode}",
   "atelier.view_page": "Bekijk de pagina {title}",
   "atelier.page_of": "Pagina van {name}",
+  "atelier.search": "Zoek een tekenaar",
+  "atelier.no_match": "Niemand met die naam in deze lijst.",
+  "atelier.search_all": "Zoek tussen alle tekenaars",
 
   "past.title": "Eerdere uitdagingen",
   "past.lede": "Eerdere uitdagingen kun je zo vaak spelen als je wilt. Alleen de dagelijkse uitdaging telt voor je reeks.",
@@ -213,6 +216,5 @@
   "past.n": "#{n}",
 
   "lang.title": "Taal",
-  "lang.note": "De vertalingen zijn met zorg geschreven, maar er kan een fout in sluipen. Je kunt die melden op GitHub.",
-  "lang.report": "Een vertaalfout melden"
+  "lang.note": "De vertalingen zijn met zorg geschreven, maar er kan een fout in sluipen."
 }

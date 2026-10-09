@@ -53,8 +53,8 @@
   "mode.debutant.name": "Principiante",
   "mode.debutant.blurb": "Los grandes nombres de estilo fácil de reconocer, para entrenar el ojo.",
   "mode.tous.name": "Todos los dibujantes",
-  "mode.tous.blurb": "Los sesenta dibujantes más publicados, de todos los países y épocas.",
-  "mode.egmont.name": "La escuela Egmont",
+  "mode.tous.blurb": "Cientos de dibujantes de todos los países y épocas. Los más conocidos salen más a menudo.",
+  "mode.egmont.name": "Historias Egmont",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: las historias producidas para el norte de Europa.",
   "kiosk.title": "Quiosco: {country}",
   "kiosk.blurb": "Todo lo que se ha publicado allí desde {year}, venga de donde venga.",
@@ -204,6 +204,9 @@
   "atelier.play": "Jugar: {mode}",
   "atelier.view_page": "Ver la página {title}",
   "atelier.page_of": "Página de {name}",
+  "atelier.search": "Buscar un dibujante",
+  "atelier.no_match": "Nadie con ese nombre en esta lista.",
+  "atelier.search_all": "Buscar entre todos los dibujantes",
 
   "past.title": "Retos anteriores",
   "past.lede": "Los retos pasados se pueden jugar tantas veces como quieras. Solo el reto del día cuenta para tu racha.",
@@ -213,6 +216,5 @@
   "past.n": "n.º {n}",
 
   "lang.title": "Idioma",
-  "lang.note": "Las traducciones se han escrito con cuidado, pero puede haberse colado algún error. Puedes señalarlo en GitHub.",
-  "lang.report": "Señalar un error de traducción"
+  "lang.note": "Las traducciones se han escrito con cuidado, pero puede haberse colado algún error."
 }

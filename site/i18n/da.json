@@ -53,8 +53,8 @@
   "mode.debutant.name": "Begynder",
   "mode.debutant.blurb": "De store navne med en let genkendelig stil, så du kan træne øjet.",
   "mode.tous.name": "Alle tegnere",
-  "mode.tous.blurb": "De tres mest udgivne tegnere fra alle lande og alle tider.",
-  "mode.egmont.name": "Egmont-skolen",
+  "mode.tous.blurb": "Hundredvis af tegnere fra alle lande og tider. De mest kendte dukker oftere op.",
+  "mode.egmont.name": "Egmont-historier",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: historierne produceret til Nordeuropa.",
   "kiosk.title": "Kiosk: {country}",
   "kiosk.blurb": "Alt, hvad der er udkommet der siden {year}, uanset hvor det kommer fra.",
@@ -204,6 +204,9 @@
   "atelier.play": "Spil: {mode}",
   "atelier.view_page": "Se siden {title}",
   "atelier.page_of": "Side af {name}",
+  "atelier.search": "Søg efter en tegner",
+  "atelier.no_match": "Ingen med det navn på denne liste.",
+  "atelier.search_all": "Søg blandt alle tegnere",
 
   "past.title": "Tidligere udfordringer",
   "past.lede": "Tidligere udfordringer kan spilles så tit, du vil. Kun dagens udfordring tæller med i din stime.",
@@ -213,6 +216,5 @@
   "past.n": "nr. {n}",
 
   "lang.title": "Sprog",
-  "lang.note": "Oversættelserne er skrevet med omhu, men der kan have sneget sig en fejl ind. Du kan melde den på GitHub.",
-  "lang.report": "Meld en oversættelsesfejl"
+  "lang.note": "Oversættelserne er skrevet med omhu, men der kan have sneget sig en fejl ind."
 }

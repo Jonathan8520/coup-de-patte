@@ -68,7 +68,7 @@ function homeFirst(modes) {
     const index = m.countries.findIndex((c) => mine.includes(c));
     return index === -1 ? 1 : 0;
   };
-  // Ensuite les plus grandes écoles (nombre d'histoires jouables), à défaut le nombre de dessinateurs.
+  // Ensuite les pays les plus fournis (nombre d'histoires jouables), à défaut le nombre de dessinateurs.
   const size = (m) => m.stories || m.artists;
   return [...modes].sort((a, b) => score(a) - score(b) || size(b) - size(a) || modeName(a).localeCompare(modeName(b), locale()));
 }

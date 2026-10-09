@@ -53,8 +53,8 @@
   "mode.debutant.name": "Einsteiger",
   "mode.debutant.blurb": "Die großen Namen mit gut erkennbarem Stil, um das Auge zu schulen.",
   "mode.tous.name": "Alle Zeichner",
-  "mode.tous.blurb": "Die sechzig meistveröffentlichten Zeichner aus allen Ländern und Epochen.",
-  "mode.egmont.name": "Die Egmont-Schule",
+  "mode.tous.blurb": "Hunderte Zeichner aus allen Ländern und Epochen. Die bekanntesten kommen öfter dran.",
+  "mode.egmont.name": "Egmont-Geschichten",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: die für Nordeuropa produzierten Geschichten.",
   "kiosk.title": "Kiosk: {country}",
   "kiosk.blurb": "Alles, was dort seit {year} erschienen ist, egal woher es stammt.",
@@ -204,6 +204,9 @@
   "atelier.play": "Spielen: {mode}",
   "atelier.view_page": "Seite {title} ansehen",
   "atelier.page_of": "Seite von {name}",
+  "atelier.search": "Zeichner suchen",
+  "atelier.no_match": "Niemand mit diesem Namen in dieser Liste.",
+  "atelier.search_all": "Unter allen Zeichnern suchen",
 
   "past.title": "Frühere Rätsel",
   "past.lede": "Frühere Rätsel kannst du so oft spielen, wie du willst. Für deine Serie zählt nur das Tagesrätsel.",
@@ -213,6 +216,5 @@
   "past.n": "Nr. {n}",
 
   "lang.title": "Sprache",
-  "lang.note": "Die Übersetzungen wurden sorgfältig geschrieben, aber ein Fehler kann sich eingeschlichen haben. Du kannst ihn auf GitHub melden.",
-  "lang.report": "Übersetzungsfehler melden"
+  "lang.note": "Die Übersetzungen wurden sorgfältig geschrieben, aber ein Fehler kann sich eingeschlichen haben."
 }

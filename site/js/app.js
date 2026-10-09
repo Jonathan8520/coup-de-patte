@@ -28,7 +28,12 @@ async function modeGame(modeId) {
   const [meta, mode] = await Promise.all([loadMeta(), loadMode(modeId)]);
   const info = meta.modes.find((m) => m.id === modeId);
   const rnd = rngFrom(randomSeed());
-  const weights = mode.counts?.length ? mode.counts.map((c) => Math.sqrt(c)) : mode.artists.map(() => 1);
+  // Poids calculés par le pipeline (notoriété) ; à défaut, la racine du nombre d'histoires.
+  const weights = mode.weights?.length
+    ? mode.weights
+    : mode.counts?.length
+      ? mode.counts.map((c) => Math.sqrt(c))
+      : mode.artists.map(() => 1);
   const chosen = weightedSample(mode.artists, weights, ARTISTS_PER_GAME, rnd);
   const answers = shuffle(chosen, rnd).slice(0, ROUNDS);
   const seen = seenSet();

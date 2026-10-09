@@ -21,6 +21,9 @@ if (!existsSync(join(site, "data/meta.json"))) {
     if (data.artists.length < meta.artistsPerGame) {
       problems.push(`Mode ${mode.id} : ${data.artists.length} dessinateurs seulement`);
     }
+    if (data.weights && data.weights.length !== data.artists.length) {
+      problems.push(`Mode ${mode.id} : ${data.weights.length} poids pour ${data.artists.length} dessinateurs`);
+    }
     for (const code of data.artists) {
       if (!artists[code]) problems.push(`Mode ${mode.id} : dessinateur inconnu ${code}`);
     }

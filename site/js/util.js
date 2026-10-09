@@ -78,6 +78,11 @@ export function formatFullDate(key) {
   return dateFormat({ day: "numeric", month: "long", year: "numeric" }).format(parseDay(key));
 }
 
+// Comparaison sans accents ni casse, pour la recherche.
+export function fold(text) {
+  return String(text || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+}
+
 export function capitalize(text) {
   return text.charAt(0).toLocaleUpperCase(locale()) + text.slice(1);
 }

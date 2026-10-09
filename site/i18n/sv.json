@@ -53,8 +53,8 @@
   "mode.debutant.name": "Nybörjare",
   "mode.debutant.blurb": "De stora namnen med lätt igenkännlig stil, för att träna ögat.",
   "mode.tous.name": "Alla tecknare",
-  "mode.tous.blurb": "De sextio mest publicerade tecknarna från alla länder och alla tider.",
-  "mode.egmont.name": "Egmont-skolan",
+  "mode.tous.blurb": "Hundratals tecknare från alla länder och tider. De mest kända dyker upp oftare.",
+  "mode.egmont.name": "Egmont-serier",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: serierna som gjordes för Nordeuropa.",
   "kiosk.title": "Kiosk: {country}",
   "kiosk.blurb": "Allt som har getts ut där sedan {year}, var det än kommer ifrån.",
@@ -204,6 +204,9 @@
   "atelier.play": "Spela: {mode}",
   "atelier.view_page": "Visa sidan {title}",
   "atelier.page_of": "Sida av {name}",
+  "atelier.search": "Sök efter en tecknare",
+  "atelier.no_match": "Ingen med det namnet i den här listan.",
+  "atelier.search_all": "Sök bland alla tecknare",
 
   "past.title": "Tidigare utmaningar",
   "past.lede": "Tidigare utmaningar kan spelas hur många gånger du vill. Bara dagens utmaning räknas för din svit.",
@@ -213,6 +216,5 @@
   "past.n": "nr {n}",
 
   "lang.title": "Språk",
-  "lang.note": "Översättningarna är gjorda med omsorg, men ett fel kan ha smugit sig in. Du kan rapportera det på GitHub.",
-  "lang.report": "Rapportera ett översättningsfel"
+  "lang.note": "Översättningarna är gjorda med omsorg, men ett fel kan ha smugit sig in."
 }

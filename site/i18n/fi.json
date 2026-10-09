@@ -53,8 +53,8 @@
   "mode.debutant.name": "Aloittelija",
   "mode.debutant.blurb": "Suuret nimet, joiden tyylin tunnistaa helposti. Hyvä tapa harjoittaa silmää.",
   "mode.tous.name": "Kaikki piirtäjät",
-  "mode.tous.blurb": "Kuusikymmentä eniten julkaistua piirtäjää kaikista maista ja kaikilta aikakausilta.",
-  "mode.egmont.name": "Egmont-koulukunta",
+  "mode.tous.blurb": "Satoja piirtäjiä kaikista maista ja kaikilta aikakausilta. Tunnetuimmat tulevat vastaan useammin.",
+  "mode.egmont.name": "Egmont-tarinat",
   "mode.egmont.blurb": "Vicar, Branca, Ferioli, Midthun: Pohjois-Euroopalle tehdyt tarinat.",
   "kiosk.title": "Lehtipiste: {country}",
   "kiosk.blurb": "Kaikki, mitä siellä on julkaistu vuodesta {year} lähtien, tuli se mistä tahansa.",
@@ -204,6 +204,9 @@
   "atelier.play": "Pelaa: {mode}",
   "atelier.view_page": "Näytä sivu: {title}",
   "atelier.page_of": "Piirtäjän {name} sivu",
+  "atelier.search": "Etsi piirtäjää",
+  "atelier.no_match": "Tällä nimellä ei löydy ketään tästä luettelosta.",
+  "atelier.search_all": "Etsi kaikkien piirtäjien joukosta",
 
   "past.title": "Aiemmat haasteet",
   "past.lede": "Aiempia haasteita voi pelata niin monta kertaa kuin haluat. Vain päivän haaste lasketaan putkeesi.",
@@ -213,6 +216,5 @@
   "past.n": "nro {n}",
 
   "lang.title": "Kieli",
-  "lang.note": "Käännökset on tehty huolella, mutta virheitä voi silti olla. Voit ilmoittaa niistä GitHubissa.",
-  "lang.report": "Ilmoita käännösvirheestä"
+  "lang.note": "Käännökset on tehty huolella, mutta virheitä voi silti olla."
 }
