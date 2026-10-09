@@ -38,7 +38,7 @@ TABLES: dict[str, tuple[str, ...]] = {
     "inducks_entryurl": ("entrycode", "sitecode", "pagenumber", "url", "public"),
     "inducks_entry": (
         "entrycode", "issuecode", "storyversioncode", "languagecode", "title",
-        "is_cover", "mirrored", "sideways",
+        "is_cover", "mirrored", "sideways", "entrycomment", "changes",
     ),
     "inducks_storyversion": ("storyversioncode", "storycode", "kind", "entirepages", "rowsperpage"),
     "inducks_storyjob": ("storyversioncode", "personcode", "plotwritartink", "doubt"),
@@ -46,7 +46,10 @@ TABLES: dict[str, tuple[str, ...]] = {
         "personcode", "nationalitycountrycode", "fullname", "isfake",
         "borndate", "deceaseddate", "photofilename",
     ),
-    "inducks_story": ("storycode", "title", "firstpublicationdate"),
+    "inducks_story": ("storycode", "title", "firstpublicationdate", "storycomment"),
+    "inducks_storyreference": ("fromstorycode", "tostorycode", "referencereasonid"),
+    "inducks_referencereason": ("referencereasonid", "referencereasontext"),
+    "inducks_storysubseries": ("storycode", "subseriescode"),
     "inducks_issue": ("issuecode", "publicationcode", "oldestdate"),
     "inducks_publication": ("publicationcode", "countrycode"),
 }
@@ -58,6 +61,29 @@ ALIASES = {"is_cover": ("iscover", "isCover")}
 DERIVATIVE_SITES = ("thumbnails", "renamed")
 
 COLLECTIVE = re.compile(r"\b(studio|studios|atelier|ateliers|creations|team|staff|equipe|collectif)\b")
+
+# Dessins qui ne sont pas (ou pas seulement) de la main du dessinateur crédité.
+# Lien vers une autre histoire dont on a repris le dessin : remake, cases reproduites,
+# remontage, encrage repris, flashback… Les reprises d'idée, d'intrigue ou de gag ne
+# touchent pas au dessin et restent permises.
+BORROWED_ART = re.compile(
+    r"remake|remade|re-?used|recycl|remount|re-?ink|inked and completed|redraw|reproduc|excerpt|extract"
+    r"|edited art|filling in|recreation|\bpanels?\b|\bframe\b|swipe|cop(?:y|ied)|trac(?:e|ed|ing)\b"
+    r"|storyboard|layout|flashback|memor",
+    re.I,
+)
+IDEA_ONLY = re.compile(r"\b(idea|ideas|plot|gag|name|text|theme|mention(ed)?)\b", re.I)
+# Parution dont le dessin a été redessiné, décalqué ou retouché par quelqu'un d'autre.
+RETOUCHED = re.compile(r"redraw|re-drawn|trac(?:e|ed|ing)\b|retouch|repaint|new art", re.I)
+# Parution dont le commentaire donne l'auteur du dessin original ([org.art:TeA]) : c'est un
+# redessin ou un calque, le trait n'est plus celui de la fiche.
+ORIGINAL_ART_NOTE = re.compile(r"\borg\.(?:art|ink|pencils?)\s*:", re.I)
+# Jeux (cases à remettre dans l'ordre, devinettes en images) : souvent montés avec le dessin d'un autre.
+GAME_ENTRY = re.compile(r"\[(?:game|puzzle|quiz)\b|^game\b", re.I)
+GAME_SUBSERIES = {"Order the panels"}
+# Commentaire d'histoire qui annonce un redessin d'une autre histoire.
+REDRAWN_STORY = re.compile(r"\bredraw|\bredrawn|re-drawn|\bremake\b|\btraced\b|\bswipe", re.I)
+
 MIN_ITEMS_PER_ARTIST = 6
 MAX_ITEMS_PER_ARTIST = 60
 MAX_ARTISTS_PER_MODE = 40
@@ -201,7 +227,15 @@ def clean_name(fullname: str) -> str:
     return re.sub(r"\s+", " ", fullname).strip()
 
 
+# Ce que la dernière construction a écarté pour cause de dessin d'un autre, par raison,
+# et toutes les cases jouables avant le choix des modes (identifiant -> dessinateur).
+EXCLUDED: dict[str, set[str]] = defaultdict(set)
+ELIGIBLE: dict[str, str] = {}
+
+
 def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, Mode]]:
+    EXCLUDED.clear()
+    ELIGIBLE.clear()
     sites = {
         row["sitecode"]: row["urlbase"]
         for row in data["inducks_site"]
@@ -273,20 +307,49 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             if story:
                 recent_stories[country].add(story)
         if row["entrycode"] in scans:
-            scanned_entries[row["entrycode"]] = row
+            # Parution redessinée, décalquée ou présentée comme un jeu : le scan montre
+            # le trait de quelqu'un d'autre, ou un montage. Une autre parution peut servir.
+            if RETOUCHED.search(row["changes"]) or ORIGINAL_ART_NOTE.search(row["entrycomment"]):
+                EXCLUDED["parution redessinée ou décalquée"].add(row["entrycode"])
+            elif GAME_ENTRY.search(row["entrycomment"]):
+                EXCLUDED["parution présentée comme un jeu"].add(row["entrycode"])
+            else:
+                scanned_entries[row["entrycode"]] = row
     log.info("Langues d'Inducks les plus présentes : %s", ", ".join(f"{k} ({v})" for k, v in languages.most_common(25)))
     for country in sorted(recent_stories):
         log.info("Histoires parues récemment, %s : %d", country, len(recent_stories[country]))
 
     # 3. Un seul dessinateur, sans doute sur l'attribution.
     needed_versions = {row["storyversioncode"] for row in scanned_entries.values()}
+
+    # Histoires qui reprennent le dessin d'une autre (remake, cases reproduites, remontage…).
+    reasons = {row["referencereasonid"]: row["referencereasontext"] for row in data["inducks_referencereason"]}
+    borrows: dict[str, set[str]] = defaultdict(set)
+    for row in data["inducks_storyreference"]:
+        text = reasons.get(row["referencereasonid"], "")
+        if BORROWED_ART.search(text) and not IDEA_ONLY.search(text):
+            borrows[row["fromstorycode"]].add(row["tostorycode"])
+    sources = set().union(*borrows.values()) if borrows else set()
+
     artists_of: dict[str, set[str]] = defaultdict(set)
+    art_of_source: dict[str, set[str]] = defaultdict(set)
     for row in data["inducks_storyjob"]:
-        if row["storyversioncode"] in needed_versions and row["plotwritartink"] == "a":
-            if row["doubt"] == "Y":
-                artists_of[row["storyversioncode"]].add("?")
-            else:
-                artists_of[row["storyversioncode"]].add(row["personcode"])
+        if row["plotwritartink"] != "a":
+            continue
+        who = "?" if row["doubt"] == "Y" else row["personcode"]
+        if row["storyversioncode"] in needed_versions:
+            artists_of[row["storyversioncode"]].add(who)
+        story = versions.get(row["storyversioncode"], ("", ""))[0]
+        if story in sources:
+            art_of_source[story].add(who)
+
+    def borrowed_from_someone_else(storycode: str, artist: str) -> bool:
+        # Un remake par le même dessinateur reste de sa main ; un original au dessinateur
+        # inconnu compte comme celui d'un autre.
+        return any((art_of_source.get(source) or {"?"}) - {artist} for source in borrows.get(storycode, ()))
+
+    game_stories = {row["storycode"] for row in data["inducks_storysubseries"] if row["subseriescode"] in GAME_SUBSERIES}
+    redrawn_stories = {row["storycode"] for row in data["inducks_story"] if REDRAWN_STORY.search(row["storycomment"])}
 
     persons = {row["personcode"]: row for row in data["inducks_person"]}
     stories = {row["storycode"]: row for row in data["inducks_story"]}
@@ -314,6 +377,15 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         (artist,) = artists
         if not usable_artist(artist):
             continue
+        if storycode in game_stories:
+            EXCLUDED["jeu (cases à remettre dans l'ordre…)"].add(storycode)
+            continue
+        if storycode in redrawn_stories:
+            EXCLUDED["redessin d'une autre histoire (commentaire)"].add(storycode)
+            continue
+        if borrowed_from_someone_else(storycode, artist):
+            EXCLUDED["dessin repris d'une histoire d'un autre dessinateur"].add(storycode)
+            continue
         image, url = scans[entrycode]
         french = entry["languagecode"] == "fr" or url.rsplit("/", 1)[-1].startswith("fr_")
         rank = (0 if french else 1, 0 if svc.startswith(storycode) else 1, url)
@@ -335,7 +407,10 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
             },
         )
     items = [item for _, item in best.values()]
+    ELIGIBLE.update((item["id"], item["artist"]) for item in items)
     log.info("Items jouables (dessinateur unique, scan public) : %d", len(items))
+    for reason, codes in EXCLUDED.items():
+        log.info("Écartés, %s : %d", reason, len(codes))
 
     by_artist: dict[str, list[dict]] = defaultdict(list)
     for item in items:
@@ -492,9 +567,21 @@ def daily_game(mode: Mode, day: dt.date) -> dict:
     return {"mode": mode.id, "artists": sorted(artists), "rounds": rounds}
 
 
-def extend_daily(previous: dict, modes: dict[str, Mode], today: dt.date) -> dict:
-    """Ajoute les jours manquants sans toucher aux jours déjà publiés."""
+def extend_daily(previous: dict, modes: dict[str, Mode], today: dt.date, eligible: set[str] | None = None) -> dict:
+    """Ajoute les jours manquants sans toucher aux jours déjà joués.
+
+    Un jour à venir dont une case n'est plus jouable (écartée depuis, scan retiré) est
+    refait : personne ne l'a encore vu. Les jours passés, aujourd'hui et demain (déjà
+    commencé pour les fuseaux en avance sur UTC) ne bougent jamais.
+    """
     days = dict(previous.get("days", {}))
+    if eligible:
+        for key, game in list(days.items()):
+            day = dt.date.fromisoformat(key)
+            if day > today + dt.timedelta(days=1) and not set(game["rounds"]) <= eligible:
+                mode = modes.get(game["mode"]) or modes.get(DAILY_ROTATION[day.weekday()]) or next(iter(modes.values()))
+                days[key] = daily_game(mode, day)
+                log.info("Défi du %s refait : une de ses cases n'est plus jouable", key)
     first = min(LAUNCH_DATE, today)
     day = first
     while day <= today + dt.timedelta(days=DAILY_DAYS_AHEAD):
@@ -535,13 +622,14 @@ def write_outputs(
     source: str,
     titles: dict[str, dict[str, str]] | None = None,
     recent_from: int | None = None,
+    eligible: set[str] | None = None,
 ) -> None:
     daily_path = out / "daily.json"
     previous = json.loads(daily_path.read_text(encoding="utf-8")) if daily_path.exists() else {}
 
-    # Les défis déjà publiés doivent rester jouables : on garde leurs items.
-    kept_ids = {i for game in previous.get("days", {}).values() for i in game["rounds"]}
-    daily = extend_daily(previous, modes, today)
+    # Les défis déjà publiés doivent rester jouables : leurs cases restent dans l'archive,
+    # même si elles ont quitté les modes depuis.
+    daily = extend_daily(previous, modes, today, eligible)
     needed = {i for game in daily["days"].values() for i in game["rounds"]}
 
     all_items = {item["id"]: item for mode in modes.values() for item in mode.items}
@@ -550,7 +638,7 @@ def write_outputs(
     if old_path.exists():
         old_items = {row[0]: row for row in json.loads(old_path.read_text(encoding="utf-8"))["items"]}
     archive_rows = []
-    for item_id in sorted(needed | kept_ids):
+    for item_id in sorted(needed):
         if item_id in all_items:
             archive_rows.append(compact_item(all_items[item_id]))
         elif item_id in old_items:
@@ -626,7 +714,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     if len(modes) < 2:
         log.error("Trop peu de modes jouables, on garde les données précédentes.")
         return 1
-    write_outputs(args.out, artists, modes, args.today, args.source, titles, recent_from)
+    write_outputs(args.out, artists, modes, args.today, args.source, titles, recent_from, set(ELIGIBLE))
     return 0
 
 

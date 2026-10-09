@@ -23,7 +23,7 @@ def isv(header: list[str], rows: list[list[str]]) -> bytes:
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
-def make_archive(path: Path) -> None:
+def make_archive(path: Path, traced: frozenset[str] = frozenset()) -> None:
     files: dict[str, bytes] = {}
     files["inducks_site.isv"] = isv(
         ["sitecode", "urlbase", "images", "sitename"],
@@ -46,7 +46,7 @@ def make_archive(path: Path) -> None:
             for s in range(8 if nat not in ("fr", "") else 5):
                 storycode = f"{'F' if prefix == 'N' else prefix} {prefix}{a}-{s}"
                 svc = f"{storycode}A"
-                stories.append([storycode, f"Story {storycode}", f"19{50 + s}-01-01"])
+                stories.append([storycode, f"Story {storycode}", f"19{50 + s}-01-01", ""])
                 versions.append([svc, storycode, "n", "10", "4"])
                 jobs.append([svc, code, "a", "N"])
                 jobs.append([svc, "W1", "s", "N"])
@@ -54,36 +54,61 @@ def make_archive(path: Path) -> None:
                 for printing in range(2):
                     entrycode = f"e{prefix}{a}{s}{printing}"
                     lang = "fr" if printing == 0 else "en"
-                    entries.append([entrycode, issue, svc, lang, f"Titre {storycode}", "0", "N", "N"])
+                    changes = "traced" if svc in traced else ""
+                    entries.append([entrycode, issue, svc, lang, f"Titre {storycode}", "0", "N", "N", "", changes])
                     filename = f"{lang}_{prefix.lower()}{a}{s}_001.jpg"
                     urls.append([entrycode, "webusers", "1", f"2020/01/{filename}", storycode, "Y"])
                     urls.append([entrycode, "thumbnails3", "1", f"webusers/{filename}", storycode, "Y"])
-    # Cas à écarter : deux dessinateurs, attribution douteuse, couverture, scan privé.
+    # Cas à écarter : deux dessinateurs, attribution douteuse, couverture, scan privé,
+    # puis les dessins qui ne sont pas de la main du dessinateur crédité : remake d'une
+    # histoire d'un autre, parution décalquée, jeu, sous-série de jeux, redessin annoncé.
+    # X 9 (simple suite) et X 11 (remake de sa propre histoire) restent jouables.
     persons.append(["?", "", "?", "Y", "", "", ""])
-    for svc, artists, cover, public in (
-        ("X 1A", ["U1", "U2"], "0", "Y"),
-        ("X 2A", ["U1"], "1", "Y"),
-        ("X 3A", ["U1"], "0", "N"),
-        ("X 4A", ["?"], "0", "Y"),
-        ("X 5A", ["U1"], "0", "Y"),
+    references = [
+        ["X 6", "I I0-0", "9"],
+        ["X 9", "I I0-0", "4"],
+        ["X 11", "U U1-0", "9"],
+        ["X 13", "I I0-1", "77"],
+    ]
+    subseries = [["X 10", "Order the panels"]]
+    for svc, artists, cover, public, comment, changes, storycomment, issue in (
+        ("X 1A", ["U1", "U2"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 2A", ["U1"], "1", "Y", "", "", "", "fr/PM 500"),
+        ("X 3A", ["U1"], "0", "N", "", "", "", "fr/PM 500"),
+        ("X 4A", ["?"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 5A", ["U1"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 6A", ["U1"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 7A", ["U1"], "0", "Y", "", "redrawn/traced", "", "fr/PM 500"),
+        ("X 8A", ["U1"], "0", "Y", "[game]", "", "", "fr/PM 500"),
+        ("X 9A", ["U1"], "0", "Y", "", "", "", "us/WDC 100"),
+        ("X 10A", ["U1"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 11A", ["U1"], "0", "Y", "", "", "", "us/WDC 100"),
+        ("X 12A", ["U1"], "0", "Y", "", "", "Redrawn with ducks instead of mice", "fr/PM 500"),
+        ("X 13A", ["U1"], "0", "Y", "", "", "", "fr/PM 500"),
+        ("X 14A", ["U1"], "0", "Y", "[pg;1] [org.art:TeA]", "", "", "fr/PM 500"),
     ):
         storycode = svc[:-1]
-        stories.append([storycode, "Piège", "1960"])
+        stories.append([storycode, "Piège", "1960", storycomment])
         versions.append([svc, storycode, "n", "0" if svc == "X 5A" else "10", "1" if svc == "X 5A" else "4"])
         for artist in artists:
             jobs.append([svc, artist, "a", "N"])
-        entries.append([f"e{svc}", "fr/PM 500", svc, "fr", "Piège", cover, "N", "N"])
-        urls.append([f"e{svc}", "webusers", "1", f"2020/01/{svc}.jpg", storycode, public])
+        entries.append([f"e{svc}", issue, svc, "fr", "Piège", cover, "N", "N", comment, changes])
+        urls.append([f"e{svc}", "webusers", "1", f"2020/01/fr_{svc}.jpg", storycode, public])
 
     files["inducks_person.isv"] = isv(
         ["personcode", "nationalitycountrycode", "fullname", "isfake", "borndate", "deceaseddate", "photofilename"],
         persons,
     )
-    files["inducks_story.isv"] = isv(["storycode", "title", "firstpublicationdate"], stories)
+    files["inducks_story.isv"] = isv(["storycode", "title", "firstpublicationdate", "storycomment"], stories)
+    files["inducks_storyreference.isv"] = isv(["fromstorycode", "tostorycode", "referencereasonid"], references)
+    files["inducks_referencereason.isv"] = isv(
+        ["referencereasonid", "referencereasontext"], [["4", "sequel"], ["9", "remake"], ["77", "panel 3, page 9"], ["78", "plot reused"]]
+    )
+    files["inducks_storysubseries.isv"] = isv(["storycode", "subseriescode", "storysubseriescomment"], [[*row, ""] for row in subseries])
     files["inducks_storyversion.isv"] = isv(["storyversioncode", "storycode", "kind", "entirepages", "rowsperpage"], versions)
     files["inducks_storyjob.isv"] = isv(["storyversioncode", "personcode", "plotwritartink", "doubt"], jobs)
     files["inducks_entry.isv"] = isv(
-        ["entrycode", "issuecode", "storyversioncode", "languagecode", "title", "is_cover", "mirrored", "sideways"],
+        ["entrycode", "issuecode", "storyversioncode", "languagecode", "title", "is_cover", "mirrored", "sideways", "entrycomment", "changes"],
         entries,
     )
     files["inducks_entryurl.isv"] = isv(["entrycode", "sitecode", "pagenumber", "url", "storycode", "public"], urls)
@@ -124,9 +149,13 @@ class PipelineTest(unittest.TestCase):
         us = self.read("mode-us.json")
         ids = {row[0] for row in us["items"]}
         self.assertEqual(len(us["artists"]), 10)
-        self.assertEqual(len(ids), 80)
-        for trap in ("X 1A", "X 2A", "X 3A", "X 4A", "X 5A"):
+        self.assertEqual(len(ids), 82)
+        for trap in ("X 1A", "X 2A", "X 3A", "X 4A", "X 5A", "X 6A", "X 7A", "X 8A", "X 10A", "X 12A", "X 13A", "X 14A"):
             self.assertNotIn(trap, ids)
+        # Une simple suite, ou le remake de sa propre histoire, restent de la main du dessinateur.
+        self.assertIn("X 9A", ids)
+        self.assertIn("X 11A", ids)
+        self.assertEqual(len(bd.EXCLUDED["dessin repris d'une histoire d'un autre dessinateur"]), 2)
         # Le scan de l'édition française est préféré, jamais le site de vignettes.
         self.assertTrue(all("/fr_" in row[3] and "thumbnails" not in row[3] for row in us["items"]))
         fr = self.read("mode-fr.json")
@@ -176,6 +205,25 @@ class PipelineTest(unittest.TestCase):
         for day, published in first.items():
             self.assertEqual(later[day], published)
         self.assertGreater(len(later), len(first))
+
+    def test_upcoming_daily_is_redone_when_a_panel_is_dropped(self) -> None:
+        self.run_pipeline()
+        first = self.read("daily.json")["days"]
+        today = first[TODAY.isoformat()]
+        later_day = (TODAY + dt.timedelta(days=3)).isoformat()
+        dropped = next(i for i in first[later_day]["rounds"] if i not in today["rounds"])
+        # La semaine suivante, Inducks signale que toutes les parutions de cette case sont décalquées.
+        make_archive(self.archive, traced=frozenset({dropped}))
+        self.run_pipeline()
+        days = self.read("daily.json")["days"]
+        self.assertEqual(days[TODAY.isoformat()], today)
+        self.assertNotIn(dropped, days[later_day]["rounds"])
+        self.assertEqual(len(days[later_day]["rounds"]), bd.ROUNDS_PER_GAME)
+        self.assertEqual(days[later_day]["mode"], first[later_day]["mode"])
+        archived = {row[0] for row in self.read("archive.json")["items"]}
+        self.assertTrue(set(days[later_day]["rounds"]) <= archived)
+        if all(dropped not in game["rounds"] for game in days.values()):
+            self.assertNotIn(dropped, archived)
 
 
 if __name__ == "__main__":

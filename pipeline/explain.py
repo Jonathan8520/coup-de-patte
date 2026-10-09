@@ -10,6 +10,7 @@ Usage :
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -65,14 +66,24 @@ def main(argv=None) -> int:
         rows = bd.to_int(row["rowsperpage"])
         return (bd.to_int(row["entirepages"]) or 0) >= 1 and (rows is None or rows >= 3)
 
-    lines = ["| Recherche | Fiche Inducks | Nationalité | Histoires dessinées | En planches | Seul dessinateur | Scan public de la page 1 |", "|---|---|---|---|---|---|---|"]
+    # Les cases réellement retenues par build_data.py, après tous ses filtres
+    # (dont les dessins repris d'un autre : remakes, calques, jeux).
+    bd.build(data, dt.date.today())
+    kept = defaultdict(int)
+    for artist in bd.ELIGIBLE.values():
+        kept[artist] += 1
+
+    lines = [
+        "| Recherche | Fiche Inducks | Nationalité | Histoires dessinées | En planches | Seul dessinateur | Scan public de la page 1 | Retenues (dessin de sa main) |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
     for wanted in args.names:
         key = bd.fold(wanted)
         matches = [code for code, names in names_of.items() if key in names]
         if not matches:
             matches = [code for code, names in names_of.items() if any(key in n.split() or n.startswith(key) for n in names)][:5]
         if not matches:
-            lines.append(f"| {wanted} | introuvable | | | | | |")
+            lines.append(f"| {wanted} | introuvable | | | | | | |")
             continue
         for code in matches:
             person = persons.get(code, {})
@@ -89,7 +100,7 @@ def main(argv=None) -> int:
                         break
             lines.append(
                 f"| {wanted} | {person.get('fullname', '?')} ({code}) | {person.get('nationalitycountrycode') or 'non renseignée'} "
-                f"| {len(mine)} | {len(planches)} | {len(seul)} | {len(scanned)} |"
+                f"| {len(mine)} | {len(planches)} | {len(seul)} | {len(scanned)} | {kept.get(code, 0)} |"
             )
     report = "\n".join(lines)
     print(report)

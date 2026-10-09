@@ -135,6 +135,33 @@ def main(argv=None) -> int:
     out += [f"## Commentaires d'histoire suspects : {len(suspicious)}", ""]
     out += [f"- {link(row['storycode'])} ({item_of_story[row['storycode']]['artist']}) : {row['storycomment'][:160]}" for row in suspicious[:30]]
 
+    # 6. Ce que la construction a écarté, avec des exemples à vérifier sur Inducks.
+    entry_story = {}
+    excluded_entries = set().union(*(codes for reason, codes in bd.EXCLUDED.items() if reason.startswith("parution")))
+    changes_out, comments_out = Counter(), Counter()
+    for row in data["inducks_entry"]:
+        if row["entrycode"] in excluded_entries:
+            entry_story[row["entrycode"]] = story_of.get(row["storyversioncode"], row["storyversioncode"])
+            if row["changes"]:
+                changes_out[row["changes"]] += 1
+            if row["entrycomment"]:
+                comments_out[row["entrycomment"][:60]] += 1
+    out += ["", "## Écartés par la construction", ""]
+    for reason, codes in bd.EXCLUDED.items():
+        stories = sorted({entry_story.get(code, code) for code in codes})
+        out.append(f"- **{reason}** : {len(codes)} ({len(stories)} histoires). Ex. : {', '.join(link(c) for c in stories[:15])}")
+    out += ["", "### Changements des parutions écartées", ""] + [f"- `{t}` : {n}" for t, n in changes_out.most_common(30)]
+    out += ["", "### Commentaires des parutions écartées", ""] + [f"- `{t}` : {n}" for t, n in comments_out.most_common(30)]
+
+    # 7. Crédits « layout » : qui a fait le reste ?
+    jobs_of: dict[str, list[str]] = defaultdict(list)
+    for row in data["inducks_storyjob"]:
+        if row["storyversioncode"] in items and row["plotwritartink"] in ("a", "i", "p", "w"):
+            jobs_of[row["storyversioncode"]].append(f"{row['plotwritartink']}:{row['personcode']}" + (f" ({row['storyjobcomment']})" if row["storyjobcomment"] else ""))
+    layout = [svc for svc, jobs in jobs_of.items() if any(job.startswith("a:") and "layout" in job for job in jobs)]
+    out += ["", f"## Crédits de dessin « layout » : {len(layout)}", ""]
+    out += [f"- {link(items[svc]['story'])} : {', '.join(jobs_of[svc])}" for svc in layout[:15]]
+
     report = "\n".join(out)
     print(report)
     if args.summary:

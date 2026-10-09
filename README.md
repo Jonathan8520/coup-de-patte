@@ -46,13 +46,16 @@ GitHub Actions  ──────▶ │ data.yml                      │
 ```
 
 - `pipeline/build_data.py` lit l'export `isv.tgz` d'Inducks, garde les scans publics de premières pages d'histoires (pas de couvertures ni de strips de journaux) dessinées par **un seul** dessinateur, choisit de préférence un scan d'une édition française, puis construit les modes.
-- Le calendrier des défis du jour est prolongé de cinq semaines à chaque passage. **Un jour déjà publié n'est jamais modifié**, et ses cases restent dans `site/data/archive.json`.
+- Une case n'est gardée que si la planche est **de la main du dessinateur crédité**. Sont écartés, d'après les fiches Inducks : les remakes et reprises de dessin d'une histoire d'un autre dessinateur (cases reproduites, remontage, flashback…), les parutions redessinées ou décalquées, et les jeux (cases à remettre dans l'ordre). Un remake de sa propre histoire, ou une simple reprise d'idée, reste permis.
+- Le calendrier des défis du jour est prolongé de cinq semaines à chaque passage. **Un jour passé, celui du jour et celui du lendemain ne sont jamais modifiés**, et leurs cases restent dans `site/data/archive.json`. Un jour plus lointain dont une case vient d'être écartée est refait.
 - Les titres traduits sont écrits dans `site/data/titles/<langue>.json`, seulement pour les histoires en jeu.
 - Les images ne sont pas copiées dans le dépôt : le navigateur les affiche depuis Inducks.
 
 Lancer la mise à jour à la main : onglet *Actions*, workflow *Données Inducks*, *Run workflow*. Décocher *publish* fait un essai à blanc : les données sont jointes au run comme artefact, sans commit.
 
-Savoir pourquoi un dessinateur est absent : workflow *Pourquoi ce dessinateur ?*, avec les noms séparés par des virgules. Le résumé du run indique, étape par étape, combien de ses histoires passent les filtres (histoires dessinées, en planches, seul dessinateur, scan public de la première page).
+Savoir pourquoi un dessinateur est absent : workflow *Pourquoi ce dessinateur ?*, avec les noms séparés par des virgules. Le résumé du run indique, étape par étape, combien de ses histoires passent les filtres (histoires dessinées, en planches, seul dessinateur, scan public de la première page, dessin de sa main).
+
+Deux autres outils du même onglet : *Fiche d'une histoire* affiche tout ce que l'export Inducks contient sur des codes d'histoire donnés (versions, crédits, liens vers d'autres histoires), et *Audit des cases* liste les cases écartées par raison, avec des exemples à vérifier.
 
 ## Organisation
 
