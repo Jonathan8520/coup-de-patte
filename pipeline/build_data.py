@@ -24,6 +24,7 @@ import random
 import re
 import sys
 import tarfile
+import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -61,7 +62,12 @@ MAX_ITEMS_PER_ARTIST = 60
 MAX_ARTISTS_PER_MODE = 40
 ARTISTS_PER_GAME = 9
 ROUNDS_PER_GAME = 8
-BEGINNER_ARTISTS = 12
+# Mode débutant : de grands noms aux styles bien distincts, quel que soit le pays de publication.
+BEGINNER_NAMES = (
+    "Carl Barks", "Don Rosa", "Romano Scarpa", "Giorgio Cavazzano", "Vicar", "Daan Jippes",
+    "Floyd Gottfredson", "Giovan Battista Carpi", "Massimo De Vita", "William Van Horn",
+    "Daniel Branca", "Silvia Ziche", "Marco Rota", "Paul Murry",
+)
 RECENT_YEARS = 20
 DAILY_DAYS_AHEAD = 35
 LAUNCH_DATE = dt.date(2026, 10, 9)
@@ -155,6 +161,12 @@ def to_int(value: str) -> int | None:
 
 def stable_key(*parts: str) -> str:
     return hashlib.sha1("|".join(parts).encode()).hexdigest()
+
+
+def fold(text: str) -> str:
+    """Comparaison sans accents ni casse."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold().strip()
 
 
 def clean_name(fullname: str) -> str:
@@ -309,7 +321,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         "debutant": Mode(
             "debutant",
             "Débutant",
-            "Les douze dessinateurs les plus publiés en France ces vingt dernières années.",
+            "Les grands noms aux styles bien reconnaissables, pour se faire l'œil.",
         ),
     }
 
@@ -332,13 +344,10 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
     fill(modes["it"], lambda item: nationality(item["artist"]) == "it")
     fill(modes["fr"], lambda item: recent_french_stories[item["story"]] > 0)
 
-    french_reach: Counter[str] = Counter()
-    for item in items:
-        if recent_french_stories[item["story"]]:
-            french_reach[item["artist"]] += recent_french_stories[item["story"]]
-    top = [a for a, _ in french_reach.most_common() if a in set(modes["fr"].artists)]
-    top_set = set(top[:BEGINNER_ARTISTS])
-    fill(modes["debutant"], lambda item: item["artist"] in top_set and recent_french_stories[item["story"]] > 0)
+    wanted = {fold(name) for name in BEGINNER_NAMES}
+    beginners = {code for code in by_artist if fold(persons[code]["fullname"]) in wanted}
+    log.info("Débutant : %d dessinateurs trouvés sur %d", len(beginners), len(wanted))
+    fill(modes["debutant"], lambda item: item["artist"] in beginners)
 
     for mode in list(modes.values()):
         if len(mode.artists) < ARTISTS_PER_GAME:

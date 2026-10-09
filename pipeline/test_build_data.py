@@ -120,7 +120,7 @@ class PipelineTest(unittest.TestCase):
     def test_modes_and_filters(self) -> None:
         self.run_pipeline()
         meta = self.read("meta.json")
-        self.assertEqual({m["id"] for m in meta["modes"]}, {"us", "it", "fr", "debutant"})
+        self.assertEqual({m["id"] for m in meta["modes"]}, {"us", "it", "fr"})
         us = self.read("mode-us.json")
         ids = {row[0] for row in us["items"]}
         self.assertEqual(len(us["artists"]), 10)
@@ -132,7 +132,7 @@ class PipelineTest(unittest.TestCase):
         fr = self.read("mode-fr.json")
         self.assertTrue(all(not row[1].endswith(("-6", "-7")) for row in fr["items"]))
         self.assertEqual(len(fr["items"]), 120)
-        self.assertEqual(len(self.read("mode-debutant.json")["artists"]), 12)
+        self.assertNotIn("debutant", {m["id"] for m in self.read("meta.json")["modes"]})
 
     def test_daily_is_stable_and_complete(self) -> None:
         self.run_pipeline()
