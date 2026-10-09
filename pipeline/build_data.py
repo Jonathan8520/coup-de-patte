@@ -57,6 +57,7 @@ ALIASES = {"is_cover": ("iscover", "isCover")}
 # Sites qui ne contiennent que des copies réduites ou renommées d'autres sites.
 DERIVATIVE_SITES = ("thumbnails", "renamed")
 
+COLLECTIVE = re.compile(r"\b(studio|studios|atelier|ateliers|creations|team|staff|equipe|collectif)\b")
 MIN_ITEMS_PER_ARTIST = 6
 MAX_ITEMS_PER_ARTIST = 60
 MAX_ARTISTS_PER_MODE = 40
@@ -267,7 +268,8 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         if not person or person["isfake"] == "Y" or code.startswith("?"):
             return False
         name = person["fullname"]
-        return bool(name) and "?" not in name and "studio" not in name.lower()
+        # Les collectifs (studios, ateliers, équipes) n'ont pas un trait unique à reconnaître.
+        return bool(name) and "?" not in name and not COLLECTIVE.search(fold(name))
 
     # 4. Un item par version d'histoire, en privilégiant un scan d'édition française.
     best: dict[str, tuple[tuple, dict]] = {}
