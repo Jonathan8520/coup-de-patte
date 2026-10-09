@@ -1,0 +1,10 @@
+{
+  "name": "coup-de-patte",
+  "private": true,
+  "type": "module",
+  "description": "Devine le dessinateur d'une case de BD Disney.",
+  "scripts": {
+    "check": "node scripts/check-site.mjs",
+    "serve": "python3 -m http.server -d site 8000"
+  }
+}

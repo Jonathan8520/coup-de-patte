@@ -778,6 +778,7 @@ dialog.open::backdrop { background: rgba(0, 0, 0, .45); }
   background: var(--yellow);
   color: #000;
   font-weight: 700;
+  white-space: nowrap;
   transform: translate(-50%, 150%);
   visibility: hidden;
   transition: transform .35s var(--ease-out), visibility 0s .35s;
