@@ -1,0 +1,63 @@
+name: Données Inducks
+
+# Chaque lundi, on récupère l'export public d'Inducks, on reconstruit les modes de jeu,
+# on prolonge le calendrier des défis du jour, puis on redéploie le site si quelque chose a changé.
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Tests du pipeline
+        run: python -m unittest discover -s pipeline -v
+
+      - name: Télécharger l'export Inducks
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 30 \
+            --user-agent "coup-de-patte/1.0 (+https://github.com/${{ github.repository }})" \
+            --output isv.tgz https://inducks.org/inducks/isv.tgz
+          ls -lh isv.tgz
+
+      - name: Construire les données
+        run: python pipeline/build_data.py --archive isv.tgz --out site/data
+
+      - name: Enregistrer les données
+        id: commit
+        run: |
+          git config user.name "Jonathan Levy"
+          git config user.email "jonathan.levy2@etu.univ-paris1.fr"
+          git add site/data
+          if git diff --cached --quiet; then
+            echo "Aucun changement."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit --quiet -m "data: mise à jour Inducks du $(date -u +%F)"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.changed == 'true'
+    uses: ./.github/workflows/pages.yml
