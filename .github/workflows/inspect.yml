@@ -1,0 +1,41 @@
+name: Fiche d'une histoire
+
+# Outil manuel : affiche tout ce que l'export Inducks contient sur quelques histoires
+# (versions, crédits, liens vers d'autres histoires…). Onglet Actions, « Fiche d'une
+# histoire », Run workflow, puis lire le résumé du run.
+on:
+  workflow_dispatch:
+    inputs:
+      histoires:
+        description: "Codes d'histoires séparés par des virgules"
+        required: true
+        default: "F AJM 75-1, ZD 59-01-04"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Télécharger l'export Inducks
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 30 \
+            --user-agent "coup-de-patte/1.0 (+https://github.com/${{ github.repository }})" \
+            --output isv.tgz https://inducks.org/inducks/isv.tgz
+
+      - name: Fiche
+        env:
+          HISTOIRES: ${{ inputs.histoires }}
+        run: |
+          IFS=',' read -ra codes <<< "$HISTOIRES"
+          trimmed=()
+          for c in "${codes[@]}"; do trimmed+=("$(echo "$c" | xargs)"); done
+          python pipeline/inspect_stories.py --archive isv.tgz --summary "$GITHUB_STEP_SUMMARY" "${trimmed[@]}"
