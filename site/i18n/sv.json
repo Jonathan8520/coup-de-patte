@@ -194,7 +194,7 @@
   "about.licence_link": "Inducks-licensen",
   "about.credits_2": "Spelet bygger på idén bakom Duckguessr, skapat av teamet bakom {dm}.",
   "about.credits_3": "Disneyfigurerna och -serierna är © Disney. Den här webbplatsen är ett fanprojekt utan koppling till Disney.",
-  "about.source_code": "Källkod på GitHub",
+  "about.source_code": "Källkod på GitHub, av {author}",
 
   "atelier.title": "Ateljén",
   "atelier.lede": "Öppna en tecknare för att se några av tecknarens sidor. Tryck på en sida för att se den i helhet.",

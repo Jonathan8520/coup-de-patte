@@ -194,7 +194,7 @@
   "about.licence_link": "Inducks-licensen",
   "about.credits_2": "Spillet bygger på idéen bag Duckguessr, skabt af holdet bag {dm}.",
   "about.credits_3": "Disney-figurerne og -historierne er © Disney. Dette websted er et fanprojekt uden tilknytning til Disney.",
-  "about.source_code": "Kildekode på GitHub",
+  "about.source_code": "Kildekode på GitHub, af {author}",
 
   "atelier.title": "Atelieret",
   "atelier.lede": "Åbn en tegner for at se nogle af tegnerens sider. Tryk på en side for at se den i fuld størrelse.",

@@ -194,7 +194,7 @@
   "about.licence_link": "la licence Inducks",
   "about.credits_2": "Le jeu reprend l'idée de Duckguessr, créé par l'équipe de {dm}.",
   "about.credits_3": "Les personnages et histoires Disney sont © Disney. Ce site est un projet de fan, sans lien avec Disney.",
-  "about.source_code": "Code source sur GitHub",
+  "about.source_code": "Code source sur GitHub, par {author}",
 
   "atelier.title": "L'atelier",
   "atelier.lede": "Ouvre un dessinateur pour voir quelques-unes de ses planches. Touche une planche pour l'afficher en entier.",

@@ -194,7 +194,7 @@
   "about.licence_link": "Inducksin lisenssin",
   "about.credits_2": "Peli perustuu Duckguessrin ideaan, jonka loi {dm}-tiimi.",
   "about.credits_3": "Disneyn hahmot ja tarinat ovat © Disney. Tämä sivusto on faniprojekti, eikä sillä ole yhteyttä Disneyyn.",
-  "about.source_code": "Lähdekoodi GitHubissa",
+  "about.source_code": "Lähdekoodi GitHubissa ({author})",
 
   "atelier.title": "Ateljee",
   "atelier.lede": "Avaa piirtäjä nähdäksesi muutaman hänen sivuistaan. Napauta sivua nähdäksesi sen kokonaan.",

@@ -194,7 +194,7 @@
   "about.licence_link": "the Inducks licence",
   "about.credits_2": "The game builds on the idea of Duckguessr, created by the {dm} team.",
   "about.credits_3": "Disney characters and stories are © Disney. This site is a fan project, not affiliated with Disney.",
-  "about.source_code": "Source code on GitHub",
+  "about.source_code": "Source code on GitHub, by {author}",
 
   "atelier.title": "The studio",
   "atelier.lede": "Open an artist to see a few of their pages. Tap a page to see it in full.",

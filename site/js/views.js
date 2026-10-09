@@ -559,7 +559,7 @@ export async function openAbout() {
       h("p", {}, tn("about.credits_1", { licence: link("https://inducks.org/inducks/COPYING", t("about.licence_link")) })),
       h("p", {}, tn("about.credits_2", { dm: link("https://github.com/bperel/DucksManager", "DucksManager") })),
       h("p", {}, t("about.credits_3")),
-      h("p", {}, link("https://github.com/Jonathan8520/coup-de-patte", t("about.source_code"))),
+      h("p", {}, link("https://github.com/Jonathan8520/coup-de-patte", t("about.source_code", { author: "Jonathan8520" }))),
     ),
   ]);
 }
