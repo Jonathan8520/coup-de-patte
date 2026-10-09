@@ -1,11 +1,59 @@
 // Feuilles latérales et fenêtres, avec ouverture et fermeture animées.
+//
+// Les animations passent par l'API Web Animations plutôt que par des transitions CSS :
+// un <dialog> qui vient d'apparaître n'a pas encore d'état « avant » calculé, et Safari
+// affichait alors la feuille d'un coup. Ici, le point de départ est donné explicitement.
 
 import { h, icon, reducedMotion } from "./util.js";
 
-const CLOSE_MS = 420;
+// Départ en douceur (vitesse nulle), arrivée freinée : pas d'apparition brusque.
+const EASE_OPEN = "cubic-bezier(.35, 0, .15, 1)";
+const EASE_CLOSE = "cubic-bezier(.4, 0, .9, .4)";
 
 function lockScroll(lock) {
   document.documentElement.style.overflow = lock ? "hidden" : "";
+}
+
+function parts(dialog) {
+  return {
+    scrim: dialog.querySelector(".scrim"),
+    panel: dialog.querySelector(".sheet-inner, .modal-inner"),
+    isSheet: dialog.classList.contains("sheet"),
+  };
+}
+
+// Position de la feuille quand elle est cachée : à droite sur grand écran, en bas sur téléphone.
+function hiddenTransform() {
+  return window.matchMedia("(min-width: 760px)").matches ? "translateX(100%)" : "translateY(100%)";
+}
+
+function animateIn(dialog) {
+  const { scrim, panel, isSheet } = parts(dialog);
+  const reduce = reducedMotion();
+  scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduce ? 120 : 340, easing: "ease-out", fill: "both" });
+  let frames;
+  if (reduce) frames = [{ opacity: 0 }, { opacity: 1 }];
+  else if (isSheet) frames = [{ transform: hiddenTransform() }, { transform: "translate(0, 0)" }];
+  else frames = [{ opacity: 0, transform: "translateY(18px) scale(.96)" }, { opacity: 1, transform: "translateY(0) scale(1)" }];
+  panel.animate(frames, { duration: reduce ? 150 : isSheet ? 480 : 340, easing: EASE_OPEN, fill: "both" });
+}
+
+function animateOut(dialog) {
+  const { scrim, panel, isSheet } = parts(dialog);
+  const reduce = reducedMotion();
+  // On repart de l'endroit où se trouve le panneau, même s'il était encore en train d'arriver.
+  const from = getComputedStyle(panel);
+  const start = { transform: from.transform === "none" ? "translate(0, 0)" : from.transform, opacity: from.opacity };
+  const scrimFrom = getComputedStyle(scrim).opacity;
+  for (const el of [scrim, panel]) el.getAnimations().forEach((a) => a.cancel());
+  let end;
+  if (reduce) end = { opacity: 0 };
+  else if (isSheet) end = { transform: hiddenTransform() };
+  else end = { opacity: 0, transform: "translateY(12px) scale(.97)" };
+  const duration = reduce ? 120 : isSheet ? 300 : 220;
+  const a = panel.animate([reduce ? { opacity: start.opacity } : start, end], { duration, easing: EASE_CLOSE, fill: "forwards" });
+  const b = scrim.animate([{ opacity: scrimFrom }, { opacity: 0 }], { duration, easing: "ease-in", fill: "forwards" });
+  return Promise.all([a.finished, b.finished]).catch(() => {});
 }
 
 function mount(dialog) {
@@ -14,31 +62,23 @@ function mount(dialog) {
     event.preventDefault();
     close(dialog);
   });
-  // Un clic en dehors du contenu ferme la fenêtre.
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) close(dialog);
-  });
+  // Un clic sur le voile, en dehors du contenu, ferme la fenêtre.
+  dialog.querySelector(".scrim").addEventListener("click", () => close(dialog));
   dialog.showModal();
   lockScroll(true);
-  requestAnimationFrame(() => requestAnimationFrame(() => dialog.classList.add("open")));
+  animateIn(dialog);
   return dialog;
 }
 
 export function close(dialog, value) {
   if (!dialog || dialog.dataset.closing) return Promise.resolve();
   dialog.dataset.closing = "1";
-  dialog.classList.remove("open");
-  return new Promise((resolve) => {
-    setTimeout(
-      () => {
-        dialog.close(value);
-        dialog.remove();
-        if (!document.querySelector("dialog[open]")) lockScroll(false);
-        dialog.dispatchEvent(new CustomEvent("closed", { detail: value }));
-        resolve(value);
-      },
-      reducedMotion() ? 0 : CLOSE_MS,
-    );
+  return animateOut(dialog).then(() => {
+    dialog.close(value);
+    dialog.remove();
+    if (!document.querySelector("dialog[open]")) lockScroll(false);
+    dialog.dispatchEvent(new CustomEvent("closed", { detail: value }));
+    return value;
   });
 }
 
@@ -49,6 +89,7 @@ export function openSheet(title, body, { onClose } = {}) {
   const dialog = h(
     "dialog",
     { class: "sheet", "aria-labelledby": heading.id },
+    h("div", { class: "scrim", "aria-hidden": "true" }),
     h(
       "div",
       { class: "sheet-inner" },
@@ -73,6 +114,7 @@ export function confirmDialog({ title, text, confirm, cancel = "Annuler" }) {
     const dialog = h(
       "dialog",
       { class: "modal", "aria-labelledby": heading.id },
+      h("div", { class: "scrim", "aria-hidden": "true" }),
       h(
         "div",
         { class: "modal-inner" },

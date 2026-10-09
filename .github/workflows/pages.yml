@@ -42,6 +42,8 @@ jobs:
         run: |
           version="$(git rev-parse --short HEAD)"
           sed -i "s/__VERSION__/${version}/g" site/index.html site/sw.js 2>/dev/null || true
+          # Chaque module est versionné : un téléphone ne garde pas un ancien fichier en cache.
+          sed -i -E "s#(from \"\./[a-z]+\.js)\"#\1?v=${version}\"#g" site/js/*.js
           cd site
           touch .nojekyll
           git init --quiet --initial-branch gh-pages

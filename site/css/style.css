@@ -18,8 +18,9 @@
   --frame: 3px;
   --gutter: 14px;
   --radius: 6px;
-  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-out: cubic-bezier(.32, .72, 0, 1);
   --ease-in-out: cubic-bezier(.6, 0, .3, 1);
+  --ease-sheet: cubic-bezier(.35, 0, .15, 1);
   --font: "Shantell Sans", "Comic Neue", ui-rounded, system-ui, sans-serif;
   --mark-cut: var(--yellow);
   color-scheme: light;
@@ -571,12 +572,12 @@ body.is-playing .bar { display: none; }
   background: var(--paper);
   transform: translateY(105%);
   visibility: hidden;
-  transition: transform .42s var(--ease-out), visibility 0s .42s;
+  transition: transform .48s var(--ease-sheet), visibility 0s .48s;
 }
 .result.open {
   transform: none;
   visibility: visible;
-  transition: transform .42s var(--ease-out), visibility 0s;
+  transition: transform .48s var(--ease-sheet), visibility 0s;
 }
 .result-verdict { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .result-verdict strong { font-size: 1.35rem; font-weight: 800; }
@@ -678,26 +679,36 @@ dialog {
   max-width: none;
   max-height: none;
 }
-dialog::backdrop { background: rgba(0, 0, 0, 0); transition: background-color .3s; }
-dialog.open::backdrop { background: rgba(0, 0, 0, .45); }
+/* Le voile est un élément à part (.scrim) pour pouvoir l'animer partout, Safari compris. */
+dialog::backdrop { background: transparent; }
 
-.sheet {
+.sheet,
+.modal {
   position: fixed;
-  inset: auto 0 0 0;
+  inset: 0;
   width: 100%;
-  height: min(88svh, 760px);
+  height: 100%;
   margin: 0;
+  overflow: hidden;
 }
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+}
+
 .sheet-inner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: min(88svh, 760px);
   border-top: var(--frame) solid var(--ink);
   background: var(--paper);
-  transform: translateY(100%);
-  transition: transform .42s var(--ease-out);
+  will-change: transform;
 }
-.sheet.open .sheet-inner { transform: none; }
 .sheet-head {
   display: flex;
   align-items: center;
@@ -722,36 +733,30 @@ dialog.open::backdrop { background: rgba(0, 0, 0, .45); }
 .sheet-body ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
 
 @media (min-width: 760px) {
-  .sheet {
-    inset: 0 0 0 auto;
-    width: min(480px, 100vw);
-    height: 100%;
-  }
   .sheet-inner {
+    top: 0;
+    left: auto;
+    width: min(480px, 100vw);
+    height: auto;
     border-top: 0;
     border-left: var(--frame) solid var(--ink);
-    transform: translateX(100%);
   }
 }
 
-.modal {
-  position: fixed;
-  inset: 0;
-  margin: auto;
-  width: min(420px, calc(100vw - 32px));
-  height: fit-content;
+.modal[open] {
+  display: grid;
+  place-items: center;
+  padding: 16px;
 }
 .modal-inner {
+  position: relative;
   display: grid;
   gap: 14px;
+  width: min(420px, 100%);
   padding: 22px;
   border: var(--frame) solid var(--ink);
   background: var(--paper);
-  opacity: 0;
-  transform: translateY(14px) scale(.97);
-  transition: opacity .25s, transform .3s var(--ease-out);
 }
-.modal.open .modal-inner { opacity: 1; transform: none; }
 .modal h2 { font-size: 1.45rem; }
 .modal p { color: var(--ink-2); }
 
@@ -834,8 +839,8 @@ dialog.open::backdrop { background: rgba(0, 0, 0, .45); }
     border-top: var(--frame) solid var(--ink);
     border-left: var(--frame) solid var(--ink);
   }
-  .result { transform: translateY(105%); transition: transform .42s var(--ease-out), visibility 0s .42s; }
-  .result.open { transform: none; transition: transform .42s var(--ease-out), visibility 0s; }
+  .result { transform: translateY(105%); transition: transform .48s var(--ease-sheet), visibility 0s .48s; }
+  .result.open { transform: none; transition: transform .48s var(--ease-sheet), visibility 0s; }
   .result-who .face { width: 34px; height: 34px; }
   .result-story { display: none; }
   .result .btn { min-height: 40px; }
