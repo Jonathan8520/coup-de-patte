@@ -38,6 +38,9 @@ if (!existsSync(join(site, "data/meta.json"))) {
     for (const id of game.rounds) {
       if (!known.has(id)) problems.push(`Défi du ${day} : case ${id} absente de l'archive`);
     }
+    for (const code of game.artists) {
+      if (!artists[code] && !archive.artists?.[code]) problems.push(`Défi du ${day} : dessinateur ${code} inconnu`);
+    }
   }
   console.log(`Défis du jour : ${Object.keys(daily.days).length} jours`);
 }

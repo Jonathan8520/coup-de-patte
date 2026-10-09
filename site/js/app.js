@@ -3,7 +3,8 @@
 import { dayKey, daysBetween, reducedMotion, toast } from "./util.js";
 import { loadMeta, loadArtists, loadMode, loadDaily, loadArchive, toItem } from "./data.js";
 import { rngFrom, randomSeed, shuffle, pick, weightedSample } from "./rng.js";
-import { seenSet, recordGame, dailyResult } from "./store.js";
+import { seenSet, recordGame, dailyResult, saveDailyProgress } from "./store.js";
+import { close } from "./dialogs.js";
 import { Game } from "./game.js";
 import { homeView, endView, dailyDoneView, challengeIntro, emptyState, openStats, openAbout, decodeChallenge } from "./views.js";
 
@@ -11,6 +12,13 @@ const ARTISTS_PER_GAME = 9;
 const ROUNDS = 8;
 const root = document.getElementById("app");
 let current = null;
+let navigation = 0;
+
+// Chaque navigation reçoit un jeton : un chargement lent ne doit pas écraser l'écran suivant.
+function begin() {
+  const token = ++navigation;
+  return () => token === navigation;
+}
 
 // ------------------------------------------------------------------ parties
 
@@ -61,7 +69,7 @@ async function fixedGame({ kind, modeId, artistCodes, roundIds, seed, day, targe
   return {
     kind,
     modeId,
-    modeName: info?.name || "",
+    modeName: info?.name || "Partie partagée",
     day,
     target,
     artists: shuffle(artistCodes, rnd),
@@ -81,8 +89,9 @@ async function people(setup) {
   return { ...(setup.extraPeople || {}), ...artists };
 }
 
-async function play(setup, { dailyNumber } = {}) {
+async function play(setup, { dailyNumber } = {}, alive = () => true) {
   const dict = await people(setup);
+  if (!alive()) return;
   if (setup.artists.some((code) => !dict[code])) {
     root.replaceChildren(emptyState("Cette partie cite un dessinateur inconnu. Essaie un autre mode."));
     return;
@@ -90,26 +99,39 @@ async function play(setup, { dailyNumber } = {}) {
   setup.title = "Prêt ?";
   setup.subtitle = setup.kind === "daily" ? `Défi du jour n°${dailyNumber}` : setup.modeName;
   const replay = setup.kind === "mode" ? () => startMode(setup.modeId) : null;
-  current = new Game(root, setup, dict, {
+  stopCurrent();
+  const game = new Game(root, setup, dict, {
     onFinish: ({ score, results }) => {
-      current = null;
+      if (current === game) current = null;
+      if (!alive()) return;
       recordGame({ kind: setup.kind, mode: setup.modeId, day: setup.day, score, results });
       swap(() => endView(root, { setup, score, results, people: dict, modeName: setup.modeName, dailyNumber, onReplay: replay }));
     },
     onQuit: () => {
-      current = null;
+      if (current === game) current = null;
       if (location.hash === "#/" || location.hash === "") render();
       else location.hash = "#/";
     },
   });
-  const game = current;
-  swap(() => game.mount());
+  if (setup.kind === "daily") {
+    // Une seule tentative : le défi compte dès la première case, même interrompu.
+    const progress = (results) => saveDailyProgress(setup.day, { mode: setup.modeId, results });
+    game.onRound = (index) => index === 0 && progress([]);
+    game.onRoundEnd = progress;
+  }
+  current = game;
+  swap(() => {
+    if (alive() && current === game) game.mount();
+  });
 }
 
 async function startMode(modeId) {
   stopCurrent();
+  const alive = begin();
   try {
-    await play(await modeGame(modeId));
+    const setup = await modeGame(modeId);
+    if (!alive()) return;
+    await play(setup, {}, alive);
   } catch (error) {
     console.error(error);
     root.replaceChildren(emptyState("Ce mode n'est pas disponible pour le moment."));
@@ -117,7 +139,9 @@ async function startMode(modeId) {
 }
 
 async function startDaily() {
+  const alive = begin();
   const daily = await loadDaily().catch(() => null);
+  if (!alive()) return;
   const today = dayKey();
   const game = daily?.days?.[today];
   if (!game) {
@@ -126,6 +150,7 @@ async function startDaily() {
   }
   const n = daysBetween(daily.launch, today) + 1;
   const meta = await loadMeta();
+  if (!alive()) return;
   const modeName = meta.modes.find((m) => m.id === game.mode)?.name || "";
   const done = dailyResult(today);
   if (done) {
@@ -133,26 +158,29 @@ async function startDaily() {
     return;
   }
   const setup = await fixedGame({ kind: "daily", modeId: game.mode, artistCodes: game.artists, roundIds: game.rounds, seed: `jour/${today}`, day: today });
+  if (!alive()) return;
   if (!setup) {
     root.replaceChildren(emptyState("Le défi du jour est introuvable. Reviens dans quelques minutes."));
     return;
   }
-  await play(setup, { dailyNumber: n });
+  await play(setup, { dailyNumber: n }, alive);
 }
 
 async function startChallenge(payload) {
+  const alive = begin();
   const data = decodeChallenge(payload);
   if (!data) {
     root.replaceChildren(emptyState("Ce lien de défi est incomplet. Demande à ton ami de le renvoyer."));
     return;
   }
   const setup = await fixedGame({ kind: "challenge", modeId: data.m, artistCodes: data.a, roundIds: data.r, seed: `defi/${payload}`, day: null, target: Number(data.s) });
+  if (!alive()) return;
   if (!setup) {
     root.replaceChildren(emptyState("Les cases de ce défi ne sont plus disponibles. Lance une nouvelle partie."));
     return;
   }
   setup.artists = data.a.slice();
-  challengeIntro(root, { target: Number(data.s), modeName: setup.modeName, rounds: setup.rounds.length, onStart: () => play(setup) });
+  challengeIntro(root, { target: Number(data.s), modeName: setup.modeName, rounds: setup.rounds.length, onStart: () => play(setup, {}, begin()) });
 }
 
 // ------------------------------------------------------------------ routes
@@ -177,7 +205,7 @@ function swap(update) {
 
 async function render() {
   stopCurrent();
-  document.querySelectorAll("dialog[open]").forEach((d) => d.close());
+  document.querySelectorAll("dialog[open]").forEach((d) => close(d));
   document.documentElement.style.overflow = "";
   const { section, arg } = parse(location.hash);
   window.scrollTo({ top: 0 });
@@ -185,8 +213,9 @@ async function render() {
     if (section === "jouer" && arg) return await startMode(decodeURIComponent(arg));
     if (section === "jour") return await startDaily();
     if (section === "defi" && arg) return await startChallenge(arg);
+    const alive = begin();
     const mount = await homeView(root);
-    swap(mount);
+    if (alive()) swap(mount);
     document.title = "Coup de Patte : qui a dessiné cette case ?";
   } catch (error) {
     console.error(error);
@@ -201,6 +230,12 @@ document.addEventListener("click", (event) => {
   if (!opener) return;
   if (opener.dataset.open === "stats") openStats();
   if (opener.dataset.open === "about") openAbout();
+});
+
+// Lien d'évitement : aller au contenu sans changer de route.
+document.querySelector(".skip")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  root.focus();
 });
 
 render();

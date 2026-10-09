@@ -88,7 +88,7 @@ function dailyPanel(meta, daily) {
     }, 30000);
     panel.append(
       h("div", { class: "daily-done" }, h("span", { class: "daily-score" }, `${number.format(done.score)} pts`), marksRow(done.marks)),
-      h("p", {}, streak > 1 ? `${streak} jours d'affilée. ` : "", next),
+      h("p", {}, done.partial ? "Partie interrompue. " : "", streak > 1 ? `${streak} jours d'affilée. ` : "", next),
       h(
         "div",
         { class: "btn-row" },
@@ -187,7 +187,7 @@ export function emptyState(text = "Les cases sont en cours de préparation. Revi
   return h(
     "div",
     { class: "empty" },
-    h("svg", { class: "mark", viewBox: "0 0 64 64", "aria-hidden": "true", style: { width: "64px", height: "64px" }, html: '<use href="#patte"/>' }),
+    icon("patte", "empty-mark"),
     h("p", {}, text),
     h("a", { class: "btn", href: "#/" }, "Retour à l'accueil"),
   );
@@ -255,10 +255,10 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
       "p",
       { class: "end-challenge" },
       diff > 0
-        ? `Défi relevé : ${number.format(diff)} points de plus que ton ami (${number.format(setup.target)}).`
+        ? `Défi relevé : ${plural(diff, "point", "points")} de plus que ton ami (${number.format(setup.target)}).`
         : diff === 0
           ? `Égalité parfaite avec ton ami : ${number.format(setup.target)} points chacun.`
-          : `Ton ami garde l'avantage avec ${number.format(setup.target)} points, ${number.format(-diff)} de plus que toi.`,
+          : `Ton ami garde l'avantage avec ${plural(setup.target, "point", "points")}, ${plural(-diff, "point", "points")} de plus que toi.`,
     );
   }
 
@@ -277,11 +277,12 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
       ),
     );
   }
-  actions.append(
+  // Pas de lien de défi pour le défi du jour : il gâcherait la surprise des autres.
+  if (setup.kind !== "daily") actions.append(
     h(
       "button",
       {
-        class: setup.kind === "daily" ? "btn" : "btn btn-yellow",
+        class: "btn btn-yellow",
         type: "button",
         onclick: () =>
           shareOrCopy({
@@ -306,7 +307,7 @@ export function endView(root, { setup, score, results, people, modeName, dailyNu
       const line = r.skipped
         ? "Case indisponible, ignorée"
         : r.correct
-          ? `« ${r.item.title || r.item.original} »${r.item.year ? `, ${r.item.year}` : ""}`
+          ? `« ${r.item.title || r.item.original || "Sans titre"} »${r.item.year ? `, ${r.item.year}` : ""}`
           : r.timeout
             ? "Temps écoulé"
             : `Tu as répondu ${guessed}`;
@@ -338,7 +339,7 @@ export function dailyDoneView(root, { number: n, modeName, result }) {
         h("p", { class: "end-kicker" }, `Défi du jour n°${n} (${modeName})`),
         h("p", { class: "end-score" }, number.format(result.score), h("small", {}, " pts")),
         marksRow(result.marks),
-        h("p", { class: "end-verdict" }, "Tu as déjà joué le défi d'aujourd'hui."),
+        h("p", { class: "end-verdict" }, result.partial ? "Partie interrompue : le défi du jour ne se joue qu'une fois." : "Tu as déjà joué le défi d'aujourd'hui."),
         next,
       ),
       h(
@@ -457,7 +458,8 @@ export async function openStats() {
             resetAll();
             close(sheet);
             toast("Statistiques effacées");
-            window.dispatchEvent(new HashChangeEvent("hashchange"));
+            if (location.hash === "#/" || !location.hash) window.dispatchEvent(new HashChangeEvent("hashchange"));
+            else location.hash = "#/";
           }
         },
       },
@@ -473,7 +475,7 @@ export async function openAbout() {
       "section",
       {},
       h("h3", {}, "Le principe"),
-      h("p", {}, "Chaque partie compte huit cases et propose neuf dessinateurs. Chaque dessinateur n'est la bonne réponse qu'une seule fois : un de ses neuf noms est donc un leurre."),
+      h("p", {}, "Chaque partie compte huit cases et propose neuf dessinateurs. Chaque dessinateur n'est la bonne réponse qu'une seule fois : l'un des neuf noms est donc un leurre."),
       h("p", {}, "La case s'ouvre sur un détail puis s'élargit. La bande du haut de la planche, où se trouvent le titre et souvent les crédits, reste cachée jusqu'à ta réponse."),
     ),
     h(

@@ -56,7 +56,7 @@ function face(artist, size) {
   const photo = photoUrl(artist);
   const wrap = h("span", { class: "face" }, h("b", { "aria-hidden": "true" }, initials(artist.name)));
   if (photo) {
-    const img = h("img", { src: photo, alt: "", loading: "lazy", decoding: "async", referrerpolicy: "strict-origin-when-cross-origin" });
+    const img = h("img", { src: photo, alt: "", loading: "lazy", decoding: "async" });
     img.addEventListener("load", () => wrap.querySelector("b")?.remove());
     img.addEventListener("error", () => img.remove());
     wrap.prepend(img);
@@ -91,6 +91,7 @@ export class Game {
   }
 
   mount() {
+    if (this.state === "gone") return;
     const s = this.setup;
     this.scoreEl = h("output", { class: "score", "aria-label": "Score" }, "0");
     this.labelEl = h("div", { class: "round-label" }, s.title, h("small", {}, s.subtitle || ""));
@@ -192,7 +193,7 @@ export class Game {
         "div",
         { class: "loader" },
         h("strong", { style: { fontSize: "1.25rem" } }, `${this.setup.rounds.length} cases, 15 secondes chacune`),
-        h("span", {}, "Réponds dans les 7 premières secondes pour un bonus."),
+        h("span", {}, "Réponds tant que la barre est jaune pour un bonus de rapidité."),
         h("div", { style: { marginTop: "10px" } }, go),
       ),
     );
@@ -215,8 +216,10 @@ export class Game {
   }
 
   async round(i) {
+    if (this.state === "gone") return;
     this.index = i;
     this.state = "loading";
+    this.onRound?.(i);
     this.closeResult();
     const dots = [...this.dotsEl.children];
     dots.forEach((dot, n) => dot.classList.toggle("current", n === i));
@@ -230,11 +233,20 @@ export class Game {
       prepared = await this.prepare(i);
     } catch {
       clearTimeout(slow);
-      // Case impossible à charger : on passe, sans pénalité.
+      if (this.state === "gone") return;
+      // Case impossible à charger : on passe, sans pénalité, et son dessinateur est retiré.
       const item = this.setup.rounds[i];
       this.results.push({ itemId: item.id, answer: item.artist, guess: null, correct: false, skipped: true, base: 0, bonus: 0, elapsed: 0, item });
       this.used.set(item.artist, i + 1);
+      const tile = this.tileByCode.get(item.artist);
+      if (tile) {
+        tile.classList.add("used");
+        tile.disabled = true;
+        if (!tile.querySelector(".used-in")) tile.append(h("span", { class: "used-in" }, `n°${i + 1}`));
+      }
       dots[i].classList.remove("current");
+      dots[i].classList.add("ko");
+      this.onRoundEnd?.(this.results);
       if (i + 1 < this.setup.rounds.length) return this.round(i + 1);
       return this.finish();
     }
@@ -242,6 +254,7 @@ export class Game {
     if (this.state === "gone") return;
     this.message();
     this.current = prepared;
+    this.frameEl.setAttribute("aria-label", "Case de bande dessinée à identifier");
 
     const old = this.frameEl.querySelector("img");
     const img = prepared.img;
@@ -253,7 +266,7 @@ export class Game {
 
     const rnd = Math.random;
     const zw = 0.42 + rnd() * 0.08;
-    const { width: fw, height: fh } = this.frameEl.getBoundingClientRect();
+    const { fw, fh } = this.frameSize();
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
     const zh = Math.min(SAFE.h, (zw * iw * fh) / (fw * ih));
@@ -282,6 +295,13 @@ export class Game {
     this.state = "playing";
     this.startedAt = performance.now();
     this.tick();
+    // Une fenêtre ouverte ou un onglet caché pendant le chargement : le chrono attend.
+    if (document.hidden || document.querySelector("dialog[open]")) this.pause();
+  }
+
+  // Taille intérieure du cadre (sans sa bordure), là où l'image est posée.
+  frameSize() {
+    return { fw: this.frameEl.clientWidth, fh: this.frameEl.clientHeight };
   }
 
   setTimer(fraction, tone) {
@@ -302,7 +322,8 @@ export class Game {
       const t = this.elapsed();
       const tone = t < BONUS_MS ? "bonus" : ROUND_MS - t < 3000 ? "late" : "";
       this.setTimer(1 - t / ROUND_MS, tone);
-      this.timerEl.setAttribute("aria-valuenow", String(Math.ceil((ROUND_MS - t) / 1000)));
+      const seconds = String(Math.max(0, Math.ceil((ROUND_MS - t) / 1000)));
+      if (this.timerEl.getAttribute("aria-valuenow") !== seconds) this.timerEl.setAttribute("aria-valuenow", seconds);
       if (t >= ROUND_MS) {
         this.guess(null);
         return;
@@ -346,12 +367,13 @@ export class Game {
     }
     this.reveal();
     this.showResult(result);
+    this.onRoundEnd?.(this.results);
   }
 
   // La case recule pour montrer toute la planche, titre compris.
   reveal() {
     const img = this.current.img;
-    const { width: fw, height: fh } = this.frameEl.getBoundingClientRect();
+    const { fw, fh } = this.frameSize();
     const frozen = getComputedStyle(img).transform;
     img.style.transform = frozen === "none" ? img.style.transform : frozen;
     img.classList.remove("zooming");
@@ -425,6 +447,7 @@ export class Game {
   }
 
   finish() {
+    if (this.state === "gone") return;
     this.state = "done";
     this.destroy();
     this.onFinish?.({ score: this.score, results: this.results });
@@ -443,7 +466,7 @@ export class Game {
     if (ok) {
       this.destroy();
       this.onQuit?.();
-    } else if (wasPlaying) this.resume();
+    } else if (this.state === "paused" && !document.hidden) this.resume();
   }
 
   pause() {
@@ -467,7 +490,7 @@ export class Game {
     const img = this.current?.img;
     if (img && !reducedMotion()) {
       const remaining = Math.max(0, ZOOM_DELAY_MS + ZOOM_MS - this.elapsed());
-      const { width: fw, height: fh } = this.frameEl.getBoundingClientRect();
+      const { fw, fh } = this.frameSize();
       img.style.setProperty("--zoom-ms", `${Math.min(ZOOM_MS, remaining)}ms`);
       img.style.setProperty("--zoom-delay", `${Math.max(0, remaining - ZOOM_MS)}ms`);
       img.classList.add("zooming");
@@ -484,7 +507,7 @@ export class Game {
   onResize() {
     const img = this.current?.img;
     if (!img) return;
-    const { width: fw, height: fh } = this.frameEl.getBoundingClientRect();
+    const { fw, fh } = this.frameSize();
     const rect = this.state === "playing" || this.state === "paused" ? SAFE : FULL;
     img.classList.remove("zooming", "revealing");
     img.style.transform = viewTransform(fw, fh, img.naturalWidth, img.naturalHeight, rect, rect === FULL ? "contain" : "cover");
@@ -493,13 +516,17 @@ export class Game {
   onKey(event) {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     if (document.querySelector("dialog[open]")) return;
-    if (this.state === "playing" && /^[1-9]$/.test(event.key)) {
-      const code = this.setup.artists[Number(event.key) - 1];
+    // event.code : les chiffres marchent aussi en AZERTY, sans Maj.
+    const digit = /^(?:Digit|Numpad)([1-9])$/.exec(event.code || "")?.[1] || (/^[1-9]$/.test(event.key) ? event.key : null);
+    const focus = document.activeElement;
+    const neutralFocus = !focus || focus === document.body || focus === this.root || this.resultEl.contains(focus);
+    if (this.state === "playing" && digit) {
+      const code = this.setup.artists[Number(digit) - 1];
       if (code && !this.used.has(code)) {
         event.preventDefault();
         this.guess(code);
       }
-    } else if (this.state === "answered" && (event.key === "Enter" || event.key === " ") && document.activeElement?.tagName !== "A") {
+    } else if (this.state === "answered" && (event.key === "Enter" || event.key === " ") && neutralFocus && focus?.tagName !== "A") {
       event.preventDefault();
       this.next();
     } else if (event.key === "Escape" && this.state === "playing") {

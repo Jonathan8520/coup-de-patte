@@ -144,6 +144,10 @@ class PipelineTest(unittest.TestCase):
         for item_id in game["rounds"]:
             self.assertIn(item_id, archive)
             self.assertIn(archive[item_id][2], game["artists"])
+        # Le leurre (neuvième dessinateur) est aussi archivé.
+        archived_artists = self.read("archive.json")["artists"]
+        for code in game["artists"]:
+            self.assertIn(code, archived_artists)
         # Une semaine plus tard, les jours déjà publiés ne bougent pas.
         self.run_pipeline(TODAY + dt.timedelta(days=7))
         later = self.read("daily.json")["days"]

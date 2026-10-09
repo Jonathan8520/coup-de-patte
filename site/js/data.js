@@ -41,7 +41,9 @@ export function toItem(row) {
 }
 
 export function imageUrl(item) {
-  return `https://inducks.org/hr.php?normalsize=1&image=${encodeURI(item.image)}`;
+  // Les caractères qui casseraient la requête (&, #, ?, +) sont échappés, le reste est laissé tel quel.
+  const image = encodeURI(item.image).replace(/[&#?+]/g, (c) => encodeURIComponent(c));
+  return `https://inducks.org/hr.php?normalsize=1&image=${image}`;
 }
 
 export function photoUrl(artist) {

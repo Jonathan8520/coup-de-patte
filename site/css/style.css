@@ -11,6 +11,7 @@
   --yellow: #ffd400;
   --yellow-ink: #000000;
   --cyan: #009fe3;
+  --cyan-text: #0075a8;
   --cyan-wash: #d6effb;
   --magenta: #e6007e;
   --magenta-wash: #fbd9ea;
@@ -32,6 +33,7 @@
     --ink-2: #b9b9b4;
     --ink-3: #85857f;
     --cyan: #33b7f0;
+    --cyan-text: #4cc3f5;
     --cyan-wash: #0d3447;
     --magenta: #ff3d9e;
     --magenta-wash: #4a1430;
@@ -334,6 +336,7 @@ body.is-playing .bar { display: none; }
   text-align: center;
 }
 .empty p { max-width: 40ch; color: var(--ink-2); }
+.empty-mark { width: 72px; height: 72px; padding: 10px; border-radius: 16px; background: var(--yellow); color: #000; --mark-cut: var(--yellow); }
 
 @media (min-width: 760px) {
   .page { grid-template-columns: repeat(6, minmax(0, 1fr)); }
@@ -383,7 +386,7 @@ body.is-playing .bar { display: none; }
   background: transparent;
   transition: background-color .3s;
 }
-.dots i.current { background: var(--paper-2); }
+.dots i.current { background: repeating-linear-gradient(-45deg, var(--ink) 0 2px, transparent 2px 6px); }
 .dots i.ok { background: var(--cyan); }
 .dots i.fast { background: var(--yellow); }
 .dots i.ko { background: var(--magenta); }
@@ -497,6 +500,7 @@ body.is-playing .bar { display: none; }
 .face {
   position: relative;
   flex: none;
+  color: var(--ink);
   width: 38px;
   height: 38px;
   overflow: hidden;
@@ -576,7 +580,7 @@ body.is-playing .bar { display: none; }
 }
 .result-verdict { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .result-verdict strong { font-size: 1.35rem; font-weight: 800; }
-.result.ok .result-verdict strong { color: var(--cyan); }
+.result.ok .result-verdict strong { color: var(--cyan-text); }
 .result.ko .result-verdict strong { color: var(--magenta); }
 .result-points { font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .result-who { display: flex; align-items: center; gap: 12px; }
@@ -586,7 +590,7 @@ body.is-playing .bar { display: none; }
 .result-story a { color: var(--ink); }
 .result .btn { width: 100%; margin-top: 4px; }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (min-width: 600px) and (max-height: 520px) and (orientation: landscape) {
   .game {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
@@ -661,7 +665,7 @@ body.is-playing .bar { display: none; }
 .recap .who strong { font-size: 1rem; }
 .recap .who span { color: var(--ink-2); font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recap .pts { font-weight: 800; font-variant-numeric: tabular-nums; }
-.recap .ok .pts { color: var(--cyan); }
+.recap .ok .pts { color: var(--cyan-text); }
 .recap .ko .pts { color: var(--magenta); }
 
 /* ---------------------------------------------------------------- feuilles latérales et fenêtres */
@@ -799,4 +803,40 @@ dialog.open::backdrop { background: rgba(0, 0, 0, .45); }
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Téléphone en paysage : tout doit tenir sans défiler. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .game { min-height: 0; padding-top: max(6px, env(safe-area-inset-top)); row-gap: 6px; column-gap: 16px; }
+  .game-top { grid-template-columns: 36px 1fr auto; }
+  .round-label small { display: none; }
+  .score { font-size: 1.2rem; }
+  .question { min-height: 0; font-size: .95rem; }
+  .side { gap: 6px; }
+  .tiles { gap: 5px; }
+  .tile { min-height: 0; padding: 4px 3px; gap: 2px; }
+  .tile .face { width: 26px; height: 26px; }
+  .tile .face b { font-size: .7rem; }
+  .tile .name { font-size: .7rem; line-height: 1.05; }
+  .tile .key, .tile .used-in { display: none; }
+  /* La réponse glisse par-dessus les vignettes, côté droit. */
+  .result,
+  .result.open {
+    position: fixed;
+    left: auto;
+    right: 0;
+    bottom: 0;
+    width: min(46%, 420px);
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+    gap: 4px;
+    opacity: 1;
+    border: 0;
+    border-top: var(--frame) solid var(--ink);
+    border-left: var(--frame) solid var(--ink);
+  }
+  .result { transform: translateY(105%); transition: transform .42s var(--ease-out), visibility 0s .42s; }
+  .result.open { transform: none; transition: transform .42s var(--ease-out), visibility 0s; }
+  .result-who .face { width: 34px; height: 34px; }
+  .result-story { display: none; }
+  .result .btn { min-height: 40px; }
 }

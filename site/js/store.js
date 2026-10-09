@@ -58,9 +58,18 @@ export function recordGame({ kind, mode, day, score, results }) {
     s.seen.push(r.itemId);
   }
   if (s.seen.length > SEEN_LIMIT) s.seen = s.seen.slice(-SEEN_LIMIT);
-  if (kind === "daily" && day && !s.daily[day]) {
+  if (kind === "daily" && day && (!s.daily[day] || s.daily[day].partial)) {
     s.daily[day] = { score, mode, marks: results.map(markOf) };
   }
+  save();
+}
+
+// Progression du défi du jour, enregistrée case par case.
+export function saveDailyProgress(day, { mode, results }) {
+  const s = load();
+  if (!day || (s.daily[day] && !s.daily[day].partial)) return;
+  const score = results.reduce((total, r) => total + (r.correct ? r.base + r.bonus : 0), 0);
+  s.daily[day] = { score, mode, marks: results.map(markOf), partial: true };
   save();
 }
 

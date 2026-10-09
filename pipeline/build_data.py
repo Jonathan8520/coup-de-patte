@@ -311,7 +311,7 @@ def build(data: dict[str, list[dict]], today: dt.date) -> tuple[dict, dict[str, 
         return persons[code]["nationalitycountrycode"]
 
     modes = {
-        "us": Mode("us", "Les Américains", "Barks, Gottfredson, Murry : des strips des journaux aux comic books."),
+        "us": Mode("us", "Les Américains", "Barks, Gottfredson, Murry et les autres dessinateurs des États-Unis."),
         "it": Mode("it", "Les Italiens", "Scarpa, Cavazzano, De Vita : l'école de Topolino."),
         "fr": Mode(
             "fr",
@@ -460,7 +460,10 @@ def write_outputs(out: Path, artists: dict, modes: dict[str, Mode], today: dt.da
             archive_rows.append(compact_item(all_items[item_id]))
         elif item_id in old_items:
             archive_rows.append(old_items[item_id])
-    archived_artists = {row[2] for row in archive_rows}
+    # Les neuf dessinateurs de chaque défi, leurre compris, doivent rester connus.
+    archived_artists = {row[2] for row in archive_rows} | {
+        code for game in daily["days"].values() for code in game["artists"]
+    }
     old_artists = {}
     if old_path.exists():
         old_artists = json.loads(old_path.read_text(encoding="utf-8")).get("artists", {})
