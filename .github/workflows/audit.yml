@@ -1,0 +1,29 @@
+name: Audit des cases
+
+# Outil manuel : cherche les cases en jeu dont le dessin pourrait venir d'un autre
+# dessinateur (remakes, reprises, jeux…). Onglet Actions, « Audit des cases », Run workflow.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Télécharger l'export Inducks
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 30 \
+            --user-agent "coup-de-patte/1.0 (+https://github.com/${{ github.repository }})" \
+            --output isv.tgz https://inducks.org/inducks/isv.tgz
+
+      - name: Audit
+        run: python pipeline/audit_items.py --archive isv.tgz --summary "$GITHUB_STEP_SUMMARY"
