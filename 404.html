@@ -12,7 +12,11 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then((list) => list.forEach((r) => r.unregister())).catch(() => {});
     }
-    location.replace("https://jonathan8520.github.io/duckdle/" + location.search + location.hash);
+    // L'adresse du jeu suit le nom du dépôt : on vérifie laquelle répond (duckdle ou Duckdle).
+    const go = (base) => location.replace(base + location.search + location.hash);
+    fetch("/duckdle/manifest.webmanifest", { method: "HEAD", cache: "no-store" })
+      .then((r) => go(r.ok ? "/duckdle/" : "/Duckdle/"))
+      .catch(() => go("/duckdle/"));
   </script>
   <noscript><meta http-equiv="refresh" content="0; url=https://jonathan8520.github.io/duckdle/"></noscript>
 </head>
