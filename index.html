@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Duckdle</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://jonathan8520.github.io/duckdle/">
+  <script>
+    // Coup de Patte s'appelle maintenant Duckdle. On garde la suite du lien (#/defi/…, #/jour…)
+    // et on retire l'ancien service worker, pour ne plus servir l'ancienne version.
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((list) => list.forEach((r) => r.unregister())).catch(() => {});
+    }
+    location.replace("https://jonathan8520.github.io/duckdle/" + location.search + location.hash);
+  </script>
+  <noscript><meta http-equiv="refresh" content="0; url=https://jonathan8520.github.io/duckdle/"></noscript>
+</head>
+<body style="font-family: system-ui, sans-serif; padding: 2rem;">
+  <p>Coup de Patte s'appelle maintenant <a href="https://jonathan8520.github.io/duckdle/">Duckdle</a>.</p>
+</body>
+</html>
